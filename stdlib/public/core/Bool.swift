@@ -185,6 +185,12 @@ extension Bool : LosslessStringConvertible {
   }
 }
 
+extension Bool {
+  public mutating func toggle() {
+    self = !self
+  }
+}
+
 //===----------------------------------------------------------------------===//
 // Operators
 //===----------------------------------------------------------------------===//
