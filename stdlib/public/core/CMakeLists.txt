@@ -38,6 +38,10 @@ set(SWIFTLIB_ESSENTIAL
   BridgingBuffer.swift
   Builtin.swift
   BuiltinMath.swift.gyb
+  BTree.swift
+  BTreeNode.swift
+  BTreeIterator.swift
+  BTreeBuilder.swift
   Character.swift
   CocoaArray.swift
   Codable.swift.gyb
@@ -136,6 +140,10 @@ set(SWIFTLIB_ESSENTIAL
   SmallBuffer.swift
   SmallString.swift
   Sort.swift
+  SortedArray.swift
+  SortedCollection.swift
+  SortedDictionary.swift
+  SortedSet.swift
   StaticString.swift
   Stride.swift
   StringHashable.swift  # ORDER DEPENDENCY: Must precede String.swift

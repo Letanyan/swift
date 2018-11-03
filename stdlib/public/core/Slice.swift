@@ -170,7 +170,7 @@ extension Slice: Collection {
     }
   }
 
-  public var indices: Indices { 
+  public var indices: Indices {
     return _base.indices[_startIndex..<_endIndex]
   }
 
@@ -345,6 +345,26 @@ extension Slice: RangeReplaceableCollection
     _base.removeSubrange(bounds)
     _startIndex = _base.index(_base.startIndex, offsetBy: sliceOffset)
     _endIndex = _base.index(_startIndex, offsetBy: newSliceCount)
+  }
+}
+
+extension Slice: SortedCollection where Base: SortedCollection {
+  public typealias Key = Base.Key
+  public typealias Keys = Base.Keys
+
+  @inlinable // generic-performance
+  public var areInIncreasingOrder: (Key, Key) -> Bool {
+    return _base.areInIncreasingOrder
+  }
+
+  @inlinable // generic-performance
+  public func index(for key: Key) -> Base.Index? {
+    return _base.index(for: key)
+  }
+
+  @inlinable // generic-performance
+  public var keys: Keys {
+    return _base.keys
   }
 }
 

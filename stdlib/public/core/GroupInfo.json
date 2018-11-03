@@ -133,6 +133,16 @@
         "SetCasting.swift",
         "SetStorage.swift",
         "SetVariant.swift"
+      ],
+      "SortedCollections": [
+        "BTree.swift",
+        "BTreeNode.swift",
+        "BTreeIterator.swift",
+        "BTreeBuilder.swift",
+        "SortedArray.swift",
+        "SortedCollection.swift",
+        "SortedDictionary.swift",
+        "SortedSet.swift"
       ]
     }
   ],

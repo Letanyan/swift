@@ -1926,6 +1926,185 @@ extension Dictionary : Decodable where Key : Decodable, Value : Decodable {
   }
 }
 
+extension SortedArray : Encodable where Key : Encodable & Comparable {
+  /// Encodes the elements of this array into the given encoder in an unkeyed
+  /// container.
+  ///
+  /// This function throws an error if any values are invalid for the given
+  /// encoder's format.
+  ///
+  /// - Parameter encoder: The encoder to write data to.
+  public func encode(to encoder: Encoder) throws {
+    var container = encoder.unkeyedContainer()
+    for element in self {
+      try container.encode(element)
+    }
+  }
+}
+
+extension SortedArray : Decodable where Key : Decodable & Comparable  {
+  /// Creates a new array by decoding from the given decoder.
+  ///
+  /// This initializer throws an error if reading from the decoder fails, or
+  /// if the data read is corrupted or otherwise invalid.
+  ///
+  /// - Parameter decoder: The decoder to read data from.
+  public init(from decoder: Decoder) throws {
+    self.init()
+
+    var container = try decoder.unkeyedContainer()
+    while !container.isAtEnd {
+      let element = try container.decode(Element.self)
+      self.insert(element)
+    }
+  }
+}
+
+extension SortedSet : Encodable where Key : Encodable & Comparable  {
+  /// Encodes the elements of this set into the given encoder in an unkeyed
+  /// container.
+  ///
+  /// This function throws an error if any values are invalid for the given
+  /// encoder's format.
+  ///
+  /// - Parameter encoder: The encoder to write data to.
+  public func encode(to encoder: Encoder) throws {
+    var container = encoder.unkeyedContainer()
+    for element in self {
+      try container.encode(element)
+    }
+  }
+}
+
+extension SortedSet : Decodable where Key : Decodable & Comparable  {
+  /// Creates a new set by decoding from the given decoder.
+  ///
+  /// This initializer throws an error if reading from the decoder fails, or
+  /// if the data read is corrupted or otherwise invalid.
+  ///
+  /// - Parameter decoder: The decoder to read data from.
+  public init(from decoder: Decoder) throws {
+    self.init()
+
+    var container = try decoder.unkeyedContainer()
+    while !container.isAtEnd {
+      let element = try container.decode(Element.self)
+      _ = self.insert(element) as (Bool, SortedSet.Index)
+    }
+  }
+}
+
+extension SortedDictionary : Encodable
+  where Key : Encodable & Comparable, Value : Encodable {
+  /// Encodes the contents of this sorted dictionary into the given encoder.
+  ///
+  /// If the sorted dictionary uses `String` or `Int` keys, the contents are
+  /// encoded in a keyed container. Otherwise, the contents are encoded as
+  /// alternating key-value pairs in an unkeyed container.
+  ///
+  /// This function throws an error if any values are invalid for the given
+  /// encoder's format.
+  ///
+  /// - Parameter encoder: The encoder to write data to.
+  public func encode(to encoder: Encoder) throws {
+    if Key.self == String.self {
+      // Since the keys are already Strings, we can use them as keys directly.
+      var container = encoder.container(keyedBy: _DictionaryCodingKey.self)
+      for (key, value) in self {
+        let codingKey = _DictionaryCodingKey(stringValue: key as! String)!
+        try container.encode(value, forKey: codingKey)
+      }
+    } else if Key.self == Int.self {
+      // Since the keys are already Ints, we can use them as keys directly.
+      var container = encoder.container(keyedBy: _DictionaryCodingKey.self)
+      for (key, value) in self {
+        let codingKey = _DictionaryCodingKey(intValue: key as! Int)!
+        try container.encode(value, forKey: codingKey)
+      }
+    } else {
+      // Keys are Encodable but not Strings or Ints, so we cannot arbitrarily
+      // convert to keys. We can encode as an array of alternating key-value
+      // pairs, though.
+      var container = encoder.unkeyedContainer()
+      for (key, value) in self {
+        try container.encode(key)
+        try container.encode(value)
+      }
+    }
+  }
+}
+
+extension SortedDictionary : Decodable
+where Key : Decodable & Comparable, Value : Decodable {
+  /// Creates a new sorted dictionary by decoding from the given decoder.
+  ///
+  /// This initializer throws an error if reading from the decoder fails, or
+  /// if the data read is corrupted or otherwise invalid.
+  ///
+  /// - Parameter decoder: The decoder to read data from.
+  public init(from decoder: Decoder) throws {
+    self.init()
+
+    if Key.self == String.self {
+      // The keys are Strings, so we should be able to expect a keyed container.
+      let container = try decoder.container(keyedBy: _DictionaryCodingKey.self)
+      for key in container.allKeys {
+        let value = try container.decode(Value.self, forKey: key)
+        self[key: key.stringValue as! Key] = value
+      }
+    } else if Key.self == Int.self {
+      // The keys are Ints, so we should be able to expect a keyed container.
+      let container = try decoder.container(keyedBy: _DictionaryCodingKey.self)
+      for key in container.allKeys {
+        guard key.intValue != nil else {
+          // We provide stringValues for Int keys; if an encoder chooses not to
+          // use the actual intValues, we've encoded string keys.
+          // So on init, _DictionaryCodingKey tries to parse string keys as
+          // Ints. If that succeeds, then we would have had an intValue here.
+          // We don't, so this isn't a valid Int key.
+          var codingPath = decoder.codingPath
+          codingPath.append(key)
+          throw DecodingError.typeMismatch(
+            Int.self, DecodingError.Context(
+              codingPath: codingPath,
+              debugDescription: "Expected Int key but found String key instead."))
+        }
+
+        let value = try container.decode(Value.self, forKey: key)
+        self[key: key.intValue! as! Key] = value
+      }
+    } else {
+      // We should have encoded as an array of alternating key-value pairs.
+      var container = try decoder.unkeyedContainer()
+
+      // We're expecting to get pairs. If the container has a known count, it
+      // had better be even; no point in doing work if not.
+      if let count = container.count {
+        guard count % 2 == 0 else {
+          throw DecodingError.dataCorrupted(
+            DecodingError.Context(
+              codingPath: decoder.codingPath,
+              debugDescription: "Expected collection of key-value pairs; encountered odd-length array instead."))
+        }
+      }
+
+      while !container.isAtEnd {
+        let key = try container.decode(Key.self)
+
+        guard !container.isAtEnd else {
+          throw DecodingError.dataCorrupted(
+            DecodingError.Context(
+              codingPath: decoder.codingPath,
+              debugDescription: "Unkeyed container reached end before value in key-value pair."))
+        }
+
+        let value = try container.decode(Value.self)
+        self[key: key] = value
+      }
+    }
+  }
+}
+
 //===----------------------------------------------------------------------===//
 // Convenience Default Implementations
 //===----------------------------------------------------------------------===//

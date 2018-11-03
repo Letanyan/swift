@@ -63,7 +63,7 @@ public protocol RangeExpression {
   func relative<C: Collection>(
     to collection: C
   ) -> Range<Bound> where C.Index == Bound
-  
+
   /// Returns a Boolean value indicating whether the given element is contained
   /// within the range expression.
   ///
@@ -77,7 +77,7 @@ extension RangeExpression {
   @inlinable
   public static func ~= (pattern: Self, value: Bound) -> Bool {
     return pattern.contains(value)
-  }  
+  }
 }
 
 /// A half-open interval from a lower bound up to, but not including, an upper
@@ -181,14 +181,13 @@ public struct Range<Bound : Comparable> {
 }
 
 extension Range: Sequence
-where Bound: Strideable, Bound.Stride : SignedInteger {
+  where Bound: Strideable, Bound.Stride : SignedInteger {
   public typealias Element = Bound
   public typealias Iterator = IndexingIterator<Range<Bound>>
 }
 
-extension Range: Collection, BidirectionalCollection, RandomAccessCollection
-where Bound : Strideable, Bound.Stride : SignedInteger
-{
+extension Range: Collection, SortedCollection, BidirectionalCollection, RandomAccessCollection
+  where Bound : Strideable, Bound.Stride : SignedInteger {
   /// A type that represents a position in the range.
   public typealias Index = Bound
   public typealias Indices = Range<Bound>
@@ -245,6 +244,21 @@ where Bound : Strideable, Bound.Stride : SignedInteger
   }
 
   @inlinable
+  public var areInIncreasingOrder: (Bound, Bound) -> Bool {
+    return (<)
+  }
+
+  @inlinable
+  public func index(for key: Bound) -> Index? {
+    return contains(key) ? key : nil
+  }
+
+  @inlinable
+  public var keys: Range {
+    return self
+  }
+
+  @inlinable
   public func _customContainsEquatableElement(_ element: Element) -> Bool? {
     return lowerBound <= element && element < upperBound
   }
@@ -278,7 +292,7 @@ where Bound : Strideable, Bound.Stride : SignedInteger
   }
 }
 
-extension Range where Bound: Strideable, Bound.Stride : SignedInteger {  
+extension Range where Bound: Strideable, Bound.Stride : SignedInteger {
   /// Creates an instance equivalent to the given `ClosedRange`.
   ///
   /// - Parameter other: A closed range to convert to a `Range` instance.
@@ -332,7 +346,7 @@ extension Range {
   @inlinable // trivial-implementation
   @inline(__always)
   public func clamped(to limits: Range) -> Range {
-    let lower =         
+    let lower =
       limits.lowerBound > self.lowerBound ? limits.lowerBound
           : limits.upperBound < self.lowerBound ? limits.upperBound
           : self.lowerBound
@@ -429,7 +443,7 @@ extension Range: Hashable where Bound: Hashable {
 @_fixed_layout
 public struct PartialRangeUpTo<Bound: Comparable> {
   public let upperBound: Bound
-  
+
   @inlinable // trivial-implementation
   public init(_ upperBound: Bound) { self.upperBound = upperBound }
 }
@@ -440,7 +454,7 @@ extension PartialRangeUpTo: RangeExpression {
   where C.Index == Bound {
     return collection.startIndex..<self.upperBound
   }
-  
+
   @_transparent
   public func contains(_ element: Bound) -> Bool {
     return element < upperBound
@@ -469,9 +483,9 @@ extension PartialRangeUpTo: RangeExpression {
 ///     print(numbers[...3])
 ///     // Prints "[10, 20, 30, 40]"
 @_fixed_layout
-public struct PartialRangeThrough<Bound: Comparable> {  
+public struct PartialRangeThrough<Bound: Comparable> {
   public let upperBound: Bound
-  
+
   @inlinable // trivial-implementation
   public init(_ upperBound: Bound) { self.upperBound = upperBound }
 }
@@ -619,8 +633,8 @@ extension PartialRangeFrom: Sequence
 
   /// Returns an iterator for this sequence.
   @inlinable
-  public __consuming func makeIterator() -> Iterator { 
-    return Iterator(_current: lowerBound) 
+  public __consuming func makeIterator() -> Iterator {
+    return Iterator(_current: lowerBound)
   }
 }
 
@@ -824,7 +838,7 @@ extension Collection {
   -> SubSequence where R.Bound == Index {
     return self[r.relative(to: self)]
   }
-  
+
   @inlinable
   public subscript(x: UnboundedRange) -> SubSequence {
     return self[startIndex...]
