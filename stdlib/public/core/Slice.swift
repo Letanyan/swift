@@ -353,11 +353,6 @@ extension Slice: SortedCollection where Base: SortedCollection {
   public typealias Keys = Base.Keys
 
   @inlinable // generic-performance
-  public var areInIncreasingOrder: (Key, Key) -> Bool {
-    return _base.areInIncreasingOrder
-  }
-
-  @inlinable // generic-performance
   public func index(for key: Key) -> Base.Index? {
     return _base.index(for: key)
   }
@@ -370,7 +365,7 @@ extension Slice: SortedCollection where Base: SortedCollection {
 
 extension Slice
   where Base: RangeReplaceableCollection, Base: BidirectionalCollection {
-  
+
   @inlinable // generic-performance
   public mutating func replaceSubrange<C>(
     _ subRange: Range<Index>, with newElements: C

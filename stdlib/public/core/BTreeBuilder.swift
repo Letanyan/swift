@@ -26,11 +26,10 @@ extension _BTree {
   internal init<S: Sequence>(
     _ elements: S,
     dropDuplicates: Bool = false,
-    order: Int? = nil,
-    areInIncreasingOrder: @escaping (Key, Key) -> Bool
+    order: Int? = nil
   ) where S.Element == Element {
     let order = order ?? Node.defaultOrder
-    self.init(Node(order: order, areInIncreasingOrder: areInIncreasingOrder))
+    self.init(Node(order: order))
     withCursorAtEnd { cursor in
       for element in elements {
         cursor.move(to: element.0, choosing: .last)
@@ -64,105 +63,12 @@ extension _BTree {
     sortedElements elements: S,
     dropDuplicates: Bool = false,
     order: Int? = nil,
-    fillFactor: Double = 1,
-    areInIncreasingOrder: @escaping (Key, Key) -> Bool
+    fillFactor: Double = 1
   ) where S.Element == Element {
     var iterator = elements.makeIterator()
     self.init(
       order: order ?? Node.defaultOrder, fillFactor: fillFactor,
-      dropDuplicates: dropDuplicates, next: { iterator.next() },
-      areInIncreasingOrder: areInIncreasingOrder)
-  }
-
-  @inlinable
-  internal init(
-    order: Int,
-    fillFactor: Double = 1,
-    dropDuplicates: Bool = false,
-    next: () -> Element?,
-    areInIncreasingOrder: @escaping (Key, Key) -> Bool
-  ) {
-    precondition(order > 1)
-    precondition(fillFactor >= 0.5 && fillFactor <= 1)
-    let keysPerNode = Int(fillFactor * Double(order - 1) + 0.5)
-    assert(keysPerNode >= (order - 1) / 2 && keysPerNode <= order - 1)
-
-    var builder = _BTreeBuilder<Key, Value>(
-      order: order, keysPerNode: keysPerNode,
-      areInIncreasingOrder: areInIncreasingOrder)
-    if dropDuplicates {
-      guard var buffer = next() else {
-        self.init(Node(
-          order: order, areInIncreasingOrder: areInIncreasingOrder))
-        return
-      }
-      while let element = next() {
-        precondition(areInIncreasingOrder(buffer.0, element.0)
-          || buffer.0 == element.0)
-        if areInIncreasingOrder(buffer.0, element.0) {
-          builder.append(buffer)
-        }
-        buffer = element
-      }
-      builder.append(buffer)
-    } else {
-      var lastKey: Key? = nil
-      while let element = next() {
-        precondition(lastKey == nil
-          || areInIncreasingOrder(lastKey!, element.0)
-          || lastKey! == element.0)
-        lastKey = element.0
-        builder.append(element)
-      }
-    }
-    self.init(builder.finish())
-  }
-}
-
-extension _BTree where Key: Comparable {
-  /// Create a new B-tree from elements of an unsorted sequence, using a stable
-  /// sort algorithm.
-  ///
-  /// - Parameter elements: An unsorted sequence of arbitrary length.
-  /// - Parameter order: The desired B-tree order. If not specified
-  ///   (recommended), the default order is used.
-  /// - Complexity: O(*n* * log *n*), where *n* is the length of the sequence.
-  /// - SeeAlso: `init(sortedElements:order:fillFactor:)` for a (faster) variant
-  ///   that can be used if the sequence is already sorted.
-  @inlinable
-  internal init<S: Sequence>(
-    _ elements: S,
-    dropDuplicates: Bool = false,
-    order: Int? = nil
-  ) where S.Element == Element {
-    self.init(
-      elements,
-      dropDuplicates: dropDuplicates,
-      order: order,
-      areInIncreasingOrder: <)
-  }
-
-  /// Create a new B-tree from elements of a sequence sorted by key.
-  ///
-  /// - Parameter sortedElements: A sequence of arbitrary length, sorted by key.
-  /// - Parameter order: The desired B-tree order. If not specified
-  ///   (recommended), the default order is used.
-  /// - Parameter fillFactor: The desired fill factor in each node of the new
-  ///   tree. Must be between 0.5 and 1.0. If not specified, a value of 1.0 is
-  ///   used, i.e., nodes will be loaded with as many elements as possible.
-  /// - Complexity: O(*n*), where *n* is the length of the sequence.
-  /// - SeeAlso: `init(elements:order:fillFactor:)` for a (slower) unsorted
-  ///   variant.
-  @inlinable
-  internal init<S: Sequence>(
-    sortedElements elements: S,
-    dropDuplicates: Bool = false,
-    order: Int? = nil,
-    fillFactor: Double = 1
-  ) where S.Element == Element {
-    self.init(
-      sortedElements: elements, dropDuplicates: dropDuplicates, order: order,
-      fillFactor: fillFactor, areInIncreasingOrder: <)
+      dropDuplicates: dropDuplicates, next: { iterator.next() })
   }
 
   @inlinable
@@ -178,14 +84,14 @@ extension _BTree where Key: Comparable {
     assert(keysPerNode >= (order - 1) / 2 && keysPerNode <= order - 1)
 
     var builder = _BTreeBuilder<Key, Value>(
-      order: order, keysPerNode: keysPerNode, areInIncreasingOrder: <)
+      order: order, keysPerNode: keysPerNode)
     if dropDuplicates {
       guard var buffer = next() else {
-        self.init(Node(order: order, areInIncreasingOrder: <))
+        self.init(Node(order: order))
         return
       }
       while let element = next() {
-        precondition(buffer.0 < element.0 || buffer.0 == element.0)
+        precondition(buffer.0 <= element.0)
         if buffer.0 < element.0 {
           builder.append(buffer)
         }
@@ -227,7 +133,7 @@ internal enum BuilderState {
 /// seedling is joined into a single tree, which becomes the root.
 @usableFromInline
 @_fixed_layout
-internal struct _BTreeBuilder<Key: Equatable, Value> {
+internal struct _BTreeBuilder<Key: Comparable, Value> {
   @usableFromInline
   typealias Node = _BTreeNode<Key, Value>
   @usableFromInline
@@ -249,18 +155,12 @@ internal struct _BTreeBuilder<Key: Equatable, Value> {
   internal var state: BuilderState
 
   @inlinable
-  init(order: Int, areInIncreasingOrder: @escaping (Key, Key) -> Bool) {
-    self.init(
-      order: order, keysPerNode: order - 1,
-      areInIncreasingOrder: areInIncreasingOrder)
+  init(order: Int) {
+    self.init(order: order, keysPerNode: order - 1)
   }
 
   @inlinable
-  init(
-    order: Int,
-    keysPerNode: Int,
-    areInIncreasingOrder: @escaping (Key, Key) -> Bool
-  ) {
+  init(order: Int, keysPerNode: Int) {
     precondition(order > 1)
     precondition(keysPerNode >= (order - 1) / 2 && keysPerNode <= order - 1)
 
@@ -268,8 +168,7 @@ internal struct _BTreeBuilder<Key: Equatable, Value> {
     self.keysPerNode = keysPerNode
     self.saplings = []
     self.separators = []
-    self.seedling = Node(
-      order: order, areInIncreasingOrder: areInIncreasingOrder)
+    self.seedling = Node(order: order)
     self.state = .element
   }
 
@@ -288,7 +187,7 @@ internal struct _BTreeBuilder<Key: Equatable, Value> {
   @inlinable
   func isValidNextKey(_ key: Key) -> Bool {
     guard let last = lastKey else { return true }
-    return seedling.areInIncreasingOrder(last, key) || last == key
+    return last <= key
   }
 
   @inlinable
@@ -312,9 +211,7 @@ internal struct _BTreeBuilder<Key: Equatable, Value> {
   @inlinable
   internal mutating func closeSeedling() {
     append(sapling: seedling)
-    seedling = Node(
-      order: order,
-      areInIncreasingOrder: seedling.areInIncreasingOrder)
+    seedling = Node(order: order)
   }
 
   @inlinable
@@ -387,13 +284,13 @@ internal struct _BTreeBuilder<Key: Equatable, Value> {
           // If the single remaining sapling is too shallow, just join it to the
           // new sapling and call it a day.
           saplings.append(Node.join(
-            left: previous, separator: separator, right: sapling,
-            areInIncreasingOrder: seedling.areInIncreasingOrder))
+            left: previous, separator: separator, right: sapling))
           return
         }
         previous = Node.join(
-          left: saplings.removeLast(), separator: separators.removeLast(),
-          right: previous, areInIncreasingOrder: seedling.areInIncreasingOrder)
+          left: saplings.removeLast(),
+          separator: separators.removeLast(),
+          right: previous)
       }
 
       let fullPrevious = previous.elements.count >= keysPerNode
@@ -409,8 +306,7 @@ internal struct _BTreeBuilder<Key: Equatable, Value> {
         // We have two full nodes; add them as two branches of a new, deeper
         // node.
         sapling = Node(
-          left: previous, separator: separator, right: sapling,
-          areInIncreasingOrder: seedling.areInIncreasingOrder)
+          left: previous, separator: separator, right: sapling)
       } else if previous.depth > sapling.depth || fullPrevious {
         // The new sapling can be appended to the line and we're done.
         saplings.append(previous)
@@ -445,31 +341,12 @@ internal struct _BTreeBuilder<Key: Equatable, Value> {
     assert(separators.count == saplings.count)
     while !saplings.isEmpty {
       root = Node.join(
-        left: saplings.removeLast(), separator: separators.removeLast(),
-        right: root, areInIncreasingOrder: seedling.areInIncreasingOrder)
+        left: saplings.removeLast(),
+        separator: separators.removeLast(),
+        right: root)
     }
     state = .element
     return root
-  }
-}
-
-extension _BTreeBuilder where Key: Comparable {
-  @inlinable
-  init(order: Int) {
-    self.init(order: order, keysPerNode: order - 1, areInIncreasingOrder: <)
-  }
-
-  @inlinable
-  init(order: Int, keysPerNode: Int) {
-    precondition(order > 1)
-    precondition(keysPerNode >= (order - 1) / 2 && keysPerNode <= order - 1)
-
-    self.order = order
-    self.keysPerNode = keysPerNode
-    self.saplings = []
-    self.separators = []
-    self.seedling = Node(order: order, areInIncreasingOrder: <)
-    self.state = .element
   }
 }
 
@@ -872,14 +749,13 @@ extension _BTree {
   ) -> _BTree where S.Element == Key {
     if self.isEmpty { return self }
 
-    var b = _BTreeBuilder<Key, Value>(
-      order: self.order, areInIncreasingOrder: areInIncreasingOrder)
+    var b = _BTreeBuilder<Key, Value>(order: self.order)
     var lastKey: Key? = nil
     var path = _BTreeStrongPath(startOf: self.root)
     outer: for key in sortedKeys {
-      precondition(lastKey == nil ||  lesserThanOrEqual(lastKey!, key))
+      precondition(lastKey == nil ||  lastKey! <= key)
       lastKey = key
-      while lesserThan(path.key, key) {
+      while path.key < key {
         b.append(path.nextPart(until: .excluding(key)))
         if path.isAtEnd { break outer }
       }
@@ -909,13 +785,10 @@ extension _BTree {
   ///
   /// - Complexity: O(*n*), where *n* is the length of the tree.
   @inlinable
-  internal mutating func removeAll(
-    where predicate: (Element) -> Bool
-  ) {
+  internal mutating func removeAll(where predicate: (Element) -> Bool) {
     if self.isEmpty { return }
 
-    var b = _BTreeBuilder<Key, Value>(
-      order: self.order, areInIncreasingOrder: areInIncreasingOrder)
+    var b = _BTreeBuilder<Key, Value>(order: self.order)
     forEach { element -> Void in
       if !predicate(element) {
         b.append(element)
@@ -931,8 +804,7 @@ extension _BTree {
   internal mutating func removeAll(where predicate: (Key) -> Bool) {
     if self.isEmpty { return }
 
-    var b = _BTreeBuilder<Key, Value>(
-      order: self.order, areInIncreasingOrder: areInIncreasingOrder)
+    var b = _BTreeBuilder<Key, Value>(order: self.order)
     forEach { element -> Void in
       if !predicate(element.key) {
         b.append(element)
@@ -960,14 +832,13 @@ extension _BTree {
   ) -> _BTree where S.Element == Key {
     if self.isEmpty { return self }
 
-    var b = _BTreeBuilder<Key, Value>(
-      order: self.order, areInIncreasingOrder: areInIncreasingOrder)
+    var b = _BTreeBuilder<Key, Value>(order: self.order)
     var lastKey: Key? = nil
     var path = _BTreeStrongPath(startOf: self.root)
     outer: for key in sortedKeys {
-      precondition(lastKey == nil || lesserThanOrEqual(lastKey!, key))
+      precondition(lastKey == nil || lastKey! <= key)
       lastKey = key
-      while lesserThan(path.key, key) {
+      while path.key < key {
         path.nextPart(until: .excluding(key))
         if path.isAtEnd { break outer }
       }
@@ -992,17 +863,17 @@ extension _BTree {
 }
 
 @usableFromInline
-enum _BTreeLimit<Key: Equatable> {
+enum _BTreeLimit<Key: Comparable> {
   case including(Key)
   case excluding(Key)
 
   @inlinable
-  func match(_ key: Key, areInIncreasingOrder: (Key, Key) -> Bool) -> Bool {
+  func match(_ key: Key) -> Bool {
     switch self {
     case .including(let limit):
-      return areInIncreasingOrder(key, limit) || key == limit
+      return key <= limit
     case .excluding(let limit):
-      return areInIncreasingOrder(key, limit)
+      return key < limit
     @unknown default:
       fatalError("unhandled unknown case")
     }
@@ -1015,7 +886,7 @@ enum _BTreeRelativeLimit {
   case excludingOtherKey
 
   @inlinable
-  func with<Key: Equatable>(_ key: Key) -> _BTreeLimit<Key> {
+  func with<Key: Comparable>(_ key: Key) -> _BTreeLimit<Key> {
     switch self {
     case .includingOtherKey:
       return .including(key)
@@ -1035,7 +906,7 @@ enum _BTreeRelativeLimit {
 /// elements/subtrees from next, until we reach the end of one of the trees.
 @usableFromInline
 @_fixed_layout
-internal struct _BTreeMerger<Key: Equatable, Value> {
+internal struct _BTreeMerger<Key: Comparable, Value> {
   @usableFromInline
   typealias Limit = _BTreeLimit<Key>
   @usableFromInline
@@ -1064,8 +935,7 @@ internal struct _BTreeMerger<Key: Equatable, Value> {
     self.b = _BTreeStrongPath(startOf: second.root)
     self.builder = _BTreeBuilder(
       order: first.order,
-      keysPerNode: first.root.maxKeys,
-      areInIncreasingOrder: first.areInIncreasingOrder)
+      keysPerNode: first.root.maxKeys)
     self.done = first.isEmpty || second.isEmpty
   }
 
@@ -1131,8 +1001,7 @@ internal struct _BTreeMerger<Key: Equatable, Value> {
 
   @inlinable
   mutating func copyFromFirst(_ limit: Limit) {
-    while !a.isAtEnd
-      && limit.match(a.key, areInIncreasingOrder: a.root.areInIncreasingOrder) {
+    while !a.isAtEnd && limit.match(a.key) {
         builder.append(a.nextPart(until: limit))
     }
     if a.isAtEnd {
@@ -1161,8 +1030,7 @@ internal struct _BTreeMerger<Key: Equatable, Value> {
 
   @inlinable
   mutating func copyFromSecond(_ limit: Limit) {
-    while !b.isAtEnd
-      && limit.match(b.key, areInIncreasingOrder: b.root.areInIncreasingOrder) {
+    while !b.isAtEnd && limit.match(b.key) {
         builder.append(b.nextPart(until: limit))
     }
     if b.isAtEnd {
@@ -1190,8 +1058,7 @@ internal struct _BTreeMerger<Key: Equatable, Value> {
 
   @inlinable
   mutating func skipFromFirst(_ limit: Limit) {
-    while !a.isAtEnd
-      && limit.match(a.key, areInIncreasingOrder: a.root.areInIncreasingOrder) {
+    while !a.isAtEnd && limit.match(a.key) {
         a.nextPart(until: limit)
     }
     if a.isAtEnd {
@@ -1220,8 +1087,7 @@ internal struct _BTreeMerger<Key: Equatable, Value> {
 
   @inlinable
   mutating func skipFromSecond(_ limit: Limit) {
-    while !b.isAtEnd
-      && limit.match(b.key, areInIncreasingOrder: b.root.areInIncreasingOrder) {
+    while !b.isAtEnd && limit.match(b.key) {
         b.nextPart(until: limit)
     }
     if b.isAtEnd {
@@ -1413,7 +1279,7 @@ internal struct _BTreeMerger<Key: Equatable, Value> {
 }
 
 @usableFromInline
-internal enum _BTreePart<Key: Equatable, Value> {
+internal enum _BTreePart<Key: Comparable, Value> {
   case element((key: Key, value: Value))
   case node(_BTreeNode<Key, Value>)
   case nodeRange(_BTreeNode<Key, Value>, CountableRange<Int>)
@@ -1533,17 +1399,14 @@ extension _BTreeStrongPath {
   @inlinable
   @discardableResult
   mutating func nextPart(until limit: Limit) -> _BTreePart<Key, Value> {
-    assert(!isAtEnd
-      && limit.match(self.key, areInIncreasingOrder: root.areInIncreasingOrder))
+    assert(!isAtEnd && limit.match(self.key))
 
     // Find furthest ancestor whose entire leftmost subtree is guaranteed to
     // consist of matching elements.
     assert(!isAtEnd)
     var includeLeftmostSubtree = false
     if slot == 0 && node.isLeaf {
-      while slot == 0,
-        let pk = parentKey,
-        limit.match(pk, areInIncreasingOrder: root.areInIncreasingOrder) {
+      while slot == 0, let pk = parentKey, limit.match(pk) {
           popFromSlots()
           popFromPath()
           includeLeftmostSubtree = true
@@ -1555,23 +1418,18 @@ extension _BTreeStrongPath {
     }
 
     // Find range of matching elements in `node`.
-    assert(limit.match(
-      self.key, areInIncreasingOrder: root.areInIncreasingOrder))
+    assert(limit.match(self.key))
     let startSlot = slot!
     var endSlot = startSlot + 1
     while endSlot < node.elements.count
-      && limit.match(
-        node.elements[endSlot].0,
-        areInIncreasingOrder: root.areInIncreasingOrder) {
-          endSlot += 1
+      && limit.match(node.elements[endSlot].0) {
+      endSlot += 1
     }
 
     // See if we can include the subtree following the last matching element.
     // This is a log(n) check but it's worth it.
     let includeRightmostSubtree = node.isLeaf
-      || limit.match(
-        node.children[endSlot].last!.0,
-        areInIncreasingOrder: root.areInIncreasingOrder)
+      || limit.match(node.children[endSlot].last!.0)
     if includeRightmostSubtree {
       defer { skipForward(endSlot - startSlot) }
       return .nodeRange(node, startSlot ..< endSlot)

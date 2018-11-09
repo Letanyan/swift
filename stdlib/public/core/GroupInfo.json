@@ -134,14 +134,14 @@
         "SetStorage.swift",
         "SetVariant.swift"
       ],
-      "SortedCollections": [
+      "TreeBasedCollections": [
         "BTree.swift",
-        "BTreeNode.swift",
-        "BTreeIterator.swift",
         "BTreeBuilder.swift",
-        "SortedArray.swift",
+        "BTreeIterator.swift",
+        "BTreeNode.swift",
         "SortedCollection.swift",
         "SortedDictionary.swift",
+        "SortedMultiset.swift",
         "SortedSet.swift"
       ]
     }

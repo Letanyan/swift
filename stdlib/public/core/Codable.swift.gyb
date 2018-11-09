@@ -1926,7 +1926,7 @@ extension Dictionary : Decodable where Key : Decodable, Value : Decodable {
   }
 }
 
-extension SortedArray : Encodable where Key : Encodable & Comparable {
+extension SortedMultiset : Encodable where Key : Encodable {
   /// Encodes the elements of this array into the given encoder in an unkeyed
   /// container.
   ///
@@ -1942,7 +1942,7 @@ extension SortedArray : Encodable where Key : Encodable & Comparable {
   }
 }
 
-extension SortedArray : Decodable where Key : Decodable & Comparable  {
+extension SortedMultiset : Decodable where Key : Decodable {
   /// Creates a new array by decoding from the given decoder.
   ///
   /// This initializer throws an error if reading from the decoder fails, or
@@ -1960,7 +1960,7 @@ extension SortedArray : Decodable where Key : Decodable & Comparable  {
   }
 }
 
-extension SortedSet : Encodable where Key : Encodable & Comparable  {
+extension SortedSet : Encodable where Key : Encodable  {
   /// Encodes the elements of this set into the given encoder in an unkeyed
   /// container.
   ///
@@ -1976,7 +1976,7 @@ extension SortedSet : Encodable where Key : Encodable & Comparable  {
   }
 }
 
-extension SortedSet : Decodable where Key : Decodable & Comparable  {
+extension SortedSet : Decodable where Key : Decodable {
   /// Creates a new set by decoding from the given decoder.
   ///
   /// This initializer throws an error if reading from the decoder fails, or
@@ -1995,7 +1995,7 @@ extension SortedSet : Decodable where Key : Decodable & Comparable  {
 }
 
 extension SortedDictionary : Encodable
-  where Key : Encodable & Comparable, Value : Encodable {
+where Key : Encodable, Value : Encodable {
   /// Encodes the contents of this sorted dictionary into the given encoder.
   ///
   /// If the sorted dictionary uses `String` or `Int` keys, the contents are
@@ -2035,7 +2035,7 @@ extension SortedDictionary : Encodable
 }
 
 extension SortedDictionary : Decodable
-where Key : Decodable & Comparable, Value : Decodable {
+where Key : Decodable, Value : Decodable {
   /// Creates a new sorted dictionary by decoding from the given decoder.
   ///
   /// This initializer throws an error if reading from the decoder fails, or
@@ -2050,7 +2050,7 @@ where Key : Decodable & Comparable, Value : Decodable {
       let container = try decoder.container(keyedBy: _DictionaryCodingKey.self)
       for key in container.allKeys {
         let value = try container.decode(Value.self, forKey: key)
-        self[key: key.stringValue as! Key] = value
+        self[key.stringValue as! Key] = value
       }
     } else if Key.self == Int.self {
       // The keys are Ints, so we should be able to expect a keyed container.
@@ -2071,7 +2071,7 @@ where Key : Decodable & Comparable, Value : Decodable {
         }
 
         let value = try container.decode(Value.self, forKey: key)
-        self[key: key.intValue! as! Key] = value
+        self[key.intValue! as! Key] = value
       }
     } else {
       // We should have encoded as an array of alternating key-value pairs.
@@ -2099,7 +2099,7 @@ where Key : Decodable & Comparable, Value : Decodable {
         }
 
         let value = try container.decode(Value.self)
-        self[key: key] = value
+        self[key] = value
       }
     }
   }

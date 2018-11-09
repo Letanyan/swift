@@ -140,9 +140,9 @@ set(SWIFTLIB_ESSENTIAL
   SmallBuffer.swift
   SmallString.swift
   Sort.swift
-  SortedArray.swift
   SortedCollection.swift
   SortedDictionary.swift
+  SortedMultiset.swift
   SortedSet.swift
   StaticString.swift
   Stride.swift

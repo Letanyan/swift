@@ -26,7 +26,7 @@
 /// difference) can take as little as O(log(n)) time if the elements in the
 /// input sets aren't too interleaved.
 @_fixed_layout
-public struct SortedSet<Element: Equatable> {
+public struct SortedSet<Element: Comparable>: SetAlgebra {
   @_fixed_layout
   public struct Index: Comparable {
     @usableFromInline
@@ -89,16 +89,12 @@ extension SortedSet {
   /// - Complexity: O(*n* * log(*n*)), where *n* is the number of items in the
   /// sequence.
   @inlinable
-  public init<S: Sequence>(
-    unsortedElements elements: S,
-    areInIncreasingOrder: @escaping (Element, Element) -> Bool
-  ) where S.Element == Element {
-    let sortedElements = elements.sorted(by: areInIncreasingOrder)
+  public init<S: Sequence>(unsortedElements elements: S)
+  where S.Element == Element {
+    let sortedElements = elements.sorted()
       .lazy
       .map { (key: $0, value: ()) }
-    self.init(Tree(
-      sortedElements: sortedElements, dropDuplicates: true,
-      areInIncreasingOrder: areInIncreasingOrder))
+    self.init(Tree(sortedElements: sortedElements, dropDuplicates: true))
   }
 
   /// Create a set from a sorted finite sequence of items. If the sequence
@@ -106,48 +102,21 @@ extension SortedSet {
   ///
   /// - Complexity: O(*n*), where *n* is the number of items in the sequence.
   @inlinable
-  public init<S: Sequence>(
-    sortedElements elements: S,
-    areInIncreasingOrder: @escaping (Element, Element) -> Bool
-  ) where S.Element == Element {
+  public init<S: Sequence>(sortedElements elements: S)
+  where S.Element == Element {
     self.init(Tree(
       sortedElements: elements.lazy.map { (key: $0, value: ()) },
-      dropDuplicates: true, areInIncreasingOrder: areInIncreasingOrder))
+      dropDuplicates: true))
   }
 
   /// Create an empty set.
   @inlinable
-  public init(areInIncreasingOrder: @escaping (Element, Element) -> Bool) {
-    self.tree = Tree(areInIncreasingOrder: areInIncreasingOrder)
-  }
-}
-
-extension SortedSet: SetAlgebra where Element: Comparable {
-  @inlinable
   public init() {
-    tree = Tree(areInIncreasingOrder: <)
-  }
-
-  /// Create a sorted set from a finite sequence of items. The sequence
-  /// need not be sorted.
-  ///
-  /// - Complexity: O(*n* * log(*n*)), where *n* is the number of items in the
-  ///   sequence.
-  public init<S: Sequence>(unsortedElements elements: S)
-  where S.Element == Element {
-    self.init(unsortedElements: elements, areInIncreasingOrder: <)
-  }
-
-  /// Create a sorted set from a sorted finite sequence of items.
-  ///
-  /// - Complexity: O(*n*), where *n* is the number of items in the sequence.
-  public init<S: Sequence>(sortedElements elements: S)
-  where S.Element == Element {
-    self.init(sortedElements: elements, areInIncreasingOrder: <)
+    self.tree = Tree()
   }
 }
 
-extension SortedSet: ExpressibleByArrayLiteral where Element: Comparable {
+extension SortedSet: ExpressibleByArrayLiteral {
   public typealias ArrayLiteralElement = Element
 
   /// Create a set with the specified list of items. If the array literal
@@ -159,13 +128,6 @@ extension SortedSet: ExpressibleByArrayLiteral where Element: Comparable {
 }
 
 extension SortedSet: SortedInsertableCollection {
-  /// A predicate that returns `true` if its first argument should be ordered
-  /// before its second argument; otherwise, `false`.
-  @inlinable
-  public var areInIncreasingOrder: (Element, Element) -> Bool {
-    return tree.areInIncreasingOrder
-  }
-
   /// Returns the index of where the given key would be after insertion and
   /// whether a key already exists that is equal to the given key.
   ///
@@ -369,6 +331,7 @@ extension SortedSet: BidirectionalCollection {
   }
 }
 
+/* See if a general offset solution will be accepted by swift evo first.
 extension SortedSet {
   /// Returns the index at offset.
   ///
@@ -417,6 +380,7 @@ extension SortedSet {
     return Slice(base: self, bounds: start..<end)
   }
 }
+*/
 
 extension SortedSet {
   /// Call `body` on each element in `self` in ascending order.
@@ -668,7 +632,7 @@ extension SortedSet {
     tree.removeLast(n)
   }
 
-  /// Remove a subrange from tree
+  /// Remove a subrange from the set
   ///
   /// - Complexity: O(log(`count`) + `n`) where `n` is the length of the range
   @inlinable
@@ -676,7 +640,7 @@ extension SortedSet {
     tree.removeSubrange(range.lowerBound._base ..< range.upperBound._base)
   }
 
-  /// Remove a subrange from tree
+  /// Remove a subrange from the set
   ///
   /// - Complexity: O(log(`count`) + `n`) where `n` is the length of the range
   @inlinable

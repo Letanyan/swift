@@ -1,4 +1,4 @@
-//===--- SortedArray.swift ------------------------------------*- swift -*-===//
+//===--- SortedMultiset.swift ------------------------------------*- swift -*-===//
 //
 // This source file is part of the Swift.org open source project
 //
@@ -11,30 +11,27 @@
 //===----------------------------------------------------------------------===//
 
 /// A sorted collection of comparable elements; also known as a multiset.
-/// `SortedArray` is like a `SortedSet` except it can contain multiple members
-/// that are equal to each other. Lookup, insertion and removal of any element
-/// has logarithmic complexity.
+/// `SortedMultiset` is like a `SortedSet` except it can contain multiple
+/// members that are equal to each other. Lookup, insertion and removal of any
+/// element has logarithmic complexity.
 ///
-/// `SortedArray` stores duplicate elements in their entirety; it doesn't just
-/// count multiplicities. This is an important feature when equal elements can
-/// be distinguished by identity comparison or some other means. (If you're OK
-/// with just counting duplicates, use a `SortedDictionary` or a `Dictionary`
+/// `SortedMultiset` stores duplicate elements in their entirety; it doesn't
+/// just count multiplicities. This is an important feature when equal elements
+/// can be distinguished by identity comparison or some other means. (If you're
+/// OK with just counting duplicates, use a `SortedDictionary` or a `Dictionary`
 /// with the multiplicity as the value.)
 ///
-/// `SortedArray` is a struct with copy-on-write value semantics.
+/// `SortedMultiset` is a struct with copy-on-write value semantics.
 /// It uses an in-memory b-tree for element storage, whose individual nodes may
-/// be shared with other sorted sets or sorted arrays. Mutating a sorted array
-/// whose storage is (partially or completely) shared requires copying of only
-/// O(log(`count`)) elements. (Thus, mutation of shared `SortedArray`s may be
-/// cheaper than ordinary `Set`s, which need to copy all elements.)
-///
-/// Set operations on sorted arrays (such as taking the union, intersection or
-/// difference) can take as little as O(log(n)) time if the elements in the
-/// input sorted arrays aren't too interleaved.
+/// be shared with other sorted sets or sorted multisets. Mutating a sorted
+/// multiset whose storage is (partially or completely) shared requires copying
+/// of only O(log(`count`)) elements. (Thus, mutation of shared
+/// `SortedMultiset`s may be cheaper than ordinary `Set`s, which need to copy
+/// all elements.)
 ///
 /// - SeeAlso: `SortedSet`
 @_fixed_layout
-public struct SortedArray<Element: Equatable> {
+public struct SortedMultiset<Element: Comparable> {
   @_fixed_layout
   public struct Index: Comparable {
     @usableFromInline
@@ -89,104 +86,62 @@ public struct SortedArray<Element: Equatable> {
   }
 }
 
-extension SortedArray {
-  /// Create a sorted array from a finite sequence of items. The sequence need
-  /// not be sorted.
+extension SortedMultiset {
+  /// Create a sorted multiset from a finite sequence of items. The sequence
+  /// need not be sorted.
   /// If the sequence contains duplicate items, all of them are kept, in the
   /// same order.
   ///
   /// - Complexity: O(*n* * log(*n*)), where *n* is the number of items in the
   ///   sequence.
   @inlinable
-  public init<S: Sequence>(
-    unsortedElements elements: S,
-    areInIncreasingOrder: @escaping (Element, Element) -> Bool
-  ) where S.Element == Element {
-    let sortedElements = elements.sorted(by: areInIncreasingOrder)
+  public init<S: Sequence>(unsortedElements elements: S)
+  where S.Element == Element {
+    let sortedElements = elements.sorted()
       .lazy
       .map { (key: $0, value: ()) }
     self.init(Tree(
-      sortedElements: sortedElements, dropDuplicates: false,
-      areInIncreasingOrder: areInIncreasingOrder))
+      sortedElements: sortedElements, dropDuplicates: false))
   }
 
-  /// Create a sorted array from a sorted finite sequence of items.
+  /// Create a sorted multiset from a sorted finite sequence of items.
   /// If the sequence contains duplicate items, all of them are kept.
   ///
   /// - Complexity: O(*n*), where *n* is the number of items in the sequence.
   @inlinable
-  public init<S: Sequence>(
-    sortedElements elements: S,
-    areInIncreasingOrder: @escaping (Element, Element) -> Bool
-  ) where S.Element == Element {
+  public init<S: Sequence>(sortedElements elements: S)
+  where S.Element == Element {
     let items = elements.lazy.map { (key: $0, value: ()) }
-    self.init(Tree(
-      sortedElements: items, dropDuplicates: false,
-      areInIncreasingOrder: areInIncreasingOrder))
+    self.init(Tree(sortedElements: items, dropDuplicates: false))
   }
 
-  /// Create an empty sorted array.
-  @inlinable
-  public init(areInIncreasingOrder: @escaping (Element, Element) -> Bool) {
-    self.tree = Tree(areInIncreasingOrder: areInIncreasingOrder)
-  }
-}
-
-extension SortedArray where Key: Comparable {
-  /// Create an empty sorted array using the ordering defined on `Element` by
-  /// its `Comparable` conformance.
+  /// Create an empty sorted multiset.
   @inlinable
   public init() {
-    self.tree = Tree(areInIncreasingOrder: <)
-  }
-
-  /// Create a sorted array from a finite sequence of items. The sequence
-  /// need not be sorted.
-  ///
-  /// - Complexity: O(*n* * log(*n*)), where *n* is the number of items in the
-  ///   sequence.
-  public init<S: Sequence>(unsortedElements elements: S)
-  where S.Element == Element {
-    self.init(unsortedElements: elements, areInIncreasingOrder: <)
-  }
-
-  /// Create a sorted array from a sorted finite sequence of items.
-  ///
-  /// - Complexity: O(*n*), where *n* is the number of items in the sequence.
-  public init<S: Sequence>(
-    sortedElements elements: S
-  ) where S.Element == Element {
-    self.init(sortedElements: elements, areInIncreasingOrder: <)
+    self.tree = Tree()
   }
 }
 
-extension SortedArray: ExpressibleByArrayLiteral where Element: Comparable {
+extension SortedMultiset: ExpressibleByArrayLiteral {
   public typealias ArrayLiteralElement = Element
 
-  /// Create a sorted array with the specified list of items.
-  /// If the array literal contains duplicate items, all of them are kept.
+  /// Create a sorted multiset with the specified list of items.
+  /// If the multiset literal contains duplicate items, all of them are kept.
   @inlinable
   public init(arrayLiteral elements: Element...) {
     self.init(unsortedElements: elements)
   }
 }
 
-extension SortedArray: SortedInsertableCollection {
-  /// A predicate that returns `true` if its first argument should be ordered
-  /// before its second argument; otherwise, `false`.
-  @inlinable
-  public var areInIncreasingOrder: (Element, Element) -> Bool {
-    return tree.areInIncreasingOrder
-  }
-
+extension SortedMultiset: SortedInsertableCollection {
   /// Returns the index of where the given key would be after insertion and
   /// whether a key already exists that is equal to the given key.
   ///
   /// - Returns: `keyAlreadyExists` must be return true if a key that is equal
-  ///   to the given key already exists in the array, otherwise return
+  ///   to the given key already exists in the multiset, otherwise return
   ///   false. `location` must return the index where the given key would be
   ///   inserted.
-  /// - Complexity: O(log(*n*)), where *n* is the count of the array.
+  /// - Complexity: O(log(*n*)), where *n* is the count of the multiset.
   @inlinable
   public func insertionPoint(
     for key: Key
@@ -198,14 +153,14 @@ extension SortedArray: SortedInsertableCollection {
     }
   }
 
-  /// Inserts an element into the array. The array must remain sorted
+  /// Inserts an element into the multiset. The multiset must remain sorted
   /// after the new element is inserted.
   ///
   /// - Returns: `inserted` must be false if the element was not inserted into
-  ///   the array, otherwise return true. `location` should return the
+  ///   the multiset, otherwise return true. `location` should return the
   ///   index of where the element was inserted or where it would have been
   ///   inserted.
-  /// - Complexity: O(log(*n*)), where *n* is the count of the array
+  /// - Complexity: O(log(*n*)), where *n* is the count of the multiset
   @inlinable
   @discardableResult
   public mutating func insert(
@@ -216,7 +171,7 @@ extension SortedArray: SortedInsertableCollection {
   }
 }
 
-extension SortedArray: BidirectionalCollection {
+extension SortedMultiset: BidirectionalCollection {
   /// The index of the first element when non-empty. Otherwise the same as
   /// `endIndex`.
   ///
@@ -235,7 +190,7 @@ extension SortedArray: BidirectionalCollection {
     return Index(tree.endIndex)
   }
 
-  /// The number of elements in this sorted array.
+  /// The number of elements in this sorted multiset.
   @inlinable
   public var count: Int {
     return tree.count
@@ -256,7 +211,7 @@ extension SortedArray: BidirectionalCollection {
     return tree[index._base].0
   }
 
-  /// Return an iterator over all elements in this sorted array, in ascending
+  /// Return an iterator over all elements in this sorted multiset, in ascending
   /// key order.
   @inlinable
   public func makeIterator() -> Iterator {
@@ -265,7 +220,7 @@ extension SortedArray: BidirectionalCollection {
 
   /// Returns the successor of the given index.
   ///
-  /// - Requires: `index` is a valid index of this sorted array and it is not
+  /// - Requires: `index` is a valid index of this sorted multiset and it is not
   ///   equal to `endIndex`.
   /// - Complexity: Amortized O(1).
   @inlinable
@@ -275,7 +230,7 @@ extension SortedArray: BidirectionalCollection {
 
   /// Replaces the given index with its successor.
   ///
-  /// - Requires: `index` is a valid index of this sorted array and it is not
+  /// - Requires: `index` is a valid index of this sorted multiset and it is not
   ///   equal to `endIndex`.
   /// - Complexity: Amortized O(1).
   @inlinable
@@ -285,7 +240,7 @@ extension SortedArray: BidirectionalCollection {
 
   /// Returns the predecessor of the given index.
   ///
-  /// - Requires: `index` is a valid index of this sorted array and it is not
+  /// - Requires: `index` is a valid index of this sorted multiset and it is not
   ///   equal to `startIndex`.
   /// - Complexity: Amortized O(1).
   @inlinable
@@ -295,7 +250,7 @@ extension SortedArray: BidirectionalCollection {
 
   /// Replaces the given index with its predecessor.
   ///
-  /// - Requires: `index` is a valid index of this sorted array and it is not
+  /// - Requires: `index` is a valid index of this sorted multiset and it is not
   ///   equal to `startIndex`.
   /// - Complexity: Amortized O(1).
   @inlinable
@@ -325,7 +280,7 @@ extension SortedArray: BidirectionalCollection {
   ///   If `n` is negative, it must not be less than the distance from `index`
   ///   to `startIndex`.
   /// - Complexity: O(log(*count*)) where *count* is the number of elements in
-  ///   the array.
+  ///   the multiset.
   @inlinable
   public func formIndex(_ i: inout Index, offsetBy n: Int) {
     tree.formIndex(&i._base, offsetBy: n)
@@ -335,10 +290,10 @@ extension SortedArray: BidirectionalCollection {
   /// unless that distance is beyond a given limiting index.
   ///
   /// - Requires: `index` and `limit` must be valid indices in this sorted
-  ///   array. The operation must not advance the index beyond `endIndex` or
+  ///   multiset. The operation must not advance the index beyond `endIndex` or
   ///   before `startIndex`.
   /// - Complexity: O(log(*count*)) where *count* is the number of elements in
-  ///   the array.
+  ///   the multiset.
   @inlinable
   public func index(
     _ i: Index,
@@ -356,10 +311,10 @@ extension SortedArray: BidirectionalCollection {
   /// the given limiting index.
   ///
   /// - Requires: `index` and `limit` must be valid indices in this sorted
-  ///   array. The operation must not advance the index beyond `endIndex` or
+  ///   multiset. The operation must not advance the index beyond `endIndex` or
   ///   before `startIndex`.
   /// - Complexity: O(log(*count*)) where *count* is the number of elements in
-  ///   the sorted array.
+  ///   the sorted multiset.
   @inlinable
   @discardableResult
   public func formIndex(
@@ -372,7 +327,8 @@ extension SortedArray: BidirectionalCollection {
 
   /// Returns the distance between two indices.
   ///
-  /// - Requires: `start` and `end` must be valid indices in this sorted array.
+  /// - Requires: `start` and `end` must be valid indices in this sorted
+  ///   multiset.
   /// - Complexity: O(1)
   @inlinable
   public func distance(from start: Index, to end: Index) -> Int {
@@ -380,7 +336,8 @@ extension SortedArray: BidirectionalCollection {
   }
 }
 
-extension SortedArray {
+/* See if a general offset solution will be accepted by swift evo first.
+extension SortedMultiset {
   /// Returns the offset of the element at `index`.
   ///
   /// - Complexity: O(log(`count`))
@@ -398,7 +355,7 @@ extension SortedArray {
     return tree.offset(of: index._base)
   }
 
-  /// If `member` is in this sorted array, return the offset of its first
+  /// If `member` is in this sorted multiset, return the offset of its first
   /// instance. Otherwise, return `nil`.
   ///
   /// - Complexity: O(log(`count`))
@@ -407,7 +364,7 @@ extension SortedArray {
     return tree.offset(forKey: member, choosing: .first)
   }
 
-  /// Returns the element at `offset` from the start of the sorted array.
+  /// Returns the element at `offset` from the start of the sorted multiset.
   ///
   /// - Complexity: O(log(`count`))
   @inlinable
@@ -415,21 +372,22 @@ extension SortedArray {
     return tree.element(atOffset: offset).0
   }
 
-  /// Returns the sub sorted array containing elements in the specified range of
-  /// offsets from the start of the sorted array.
+  /// Returns the sub sorted multiset containing elements in the specified range
+  /// of offsets from the start of the sorted multiset.
   ///
   /// - Complexity: O(log(`count`))
   @inlinable
   public subscript(
     offset offsetRange: Range<Int>
-  ) -> Slice<SortedArray<Element>> {
+  ) -> Slice<SortedMultiset<Element>> {
     let start = index(atOffset: offsetRange.lowerBound)
     let end = index(atOffset: offsetRange.upperBound)
     return Slice(base: self, bounds: start..<end)
   }
 }
+*/
 
-extension SortedArray {
+extension SortedMultiset {
   /// Call `body` on each element in `self` in ascending order.
   @inlinable
   public func forEach(_ body: (Element) throws -> Void) rethrows {
@@ -453,7 +411,9 @@ extension SortedArray {
   /// Return an `Array` containing the non-`nil` results of mapping `transform`
   /// over `self`.
   @inlinable
-  public func compactMap<T>(_ transform: (Element) throws -> T?) rethrows -> [T] {
+  public func compactMap<T>(
+    _ transform: (Element) throws -> T?
+  ) rethrows -> [T] {
     return try tree.compactMap { try transform($0.0) }
   }
 
@@ -484,23 +444,23 @@ extension SortedArray {
   }
 }
 
-extension SortedArray {
-  /// Return (the first instance of) the smallest element in the sorted array,
-  /// or `nil` if the sorted array is empty.
+extension SortedMultiset {
+  /// Return (the first instance of) the smallest element in the sorted multiset,
+  /// or `nil` if the sorted multiset is empty.
   ///
   /// - Complexity: O(log(`count`))
   @inlinable
   public var first: Element? { return tree.first?.0 }
 
-  /// Return (the last instance of) the largest element in the sorted array, or
-  /// `nil` if the sorted array is empty.
+  /// Return (the last instance of) the largest element in the sorted multiset,
+  /// or `nil` if the sorted multiset is empty.
   ///
   /// - Complexity: O(log(`count`))
   @inlinable
   public var last: Element? { return tree.last?.0 }
 
-  /// Return the smallest element in the sorted array, or `nil` if the sorted
-  /// array is empty. This is the same as `first`.
+  /// Return the smallest element in the sorted multiset, or `nil` if the sorted
+  /// multiset is empty. This is the same as `first`.
   ///
   /// - Complexity: O(log(`count`))
   @inlinable
@@ -514,8 +474,8 @@ extension SortedArray {
   public func max() -> Element? { return last }
 }
 
-extension SortedArray {
-  /// Return true if the sorted array contains `element`.
+extension SortedMultiset {
+  /// Return true if the sorted multiset contains `element`.
   ///
   /// - Complexity: O(log(`count`))
   @inlinable
@@ -524,7 +484,7 @@ extension SortedArray {
   }
 
   /// Returns the index of the first instance of a given member, or `nil` if the
-  /// member is not present in the sorted array.
+  /// member is not present in the sorted multiset.
   ///
   /// - Complexity: O(log(`count`))
   @inlinable
@@ -536,7 +496,7 @@ extension SortedArray {
   }
 
   /// Returns the index of the last instance of a given member, or `nil` if the
-  /// member is not present in the sorted array.
+  /// member is not present in the sorted multiset.
   ///
   /// - Complexity: O(log(`count`))
   @inlinable
@@ -548,20 +508,22 @@ extension SortedArray {
   }
 }
 
-extension SortedArray {
-  /// Inserts all the elements from another sorted array into this sorted array.
+extension SortedMultiset {
+  /// Inserts all the elements from another sorted multiset into this sorted
+  /// multiset.
   @inlinable
-  public mutating func insert(contentsOf other: SortedArray) {
+  public mutating func insert(contentsOf other: SortedMultiset) {
     tree = tree.union(other.tree, by: .countingMatches)
   }
 
-  /// Inserts all the elements from another sorted set into this sorted array.
+  /// Inserts all the elements from another sorted set into this sorted
+  /// multiset.
   @inlinable
   public mutating func insert(contentsOf other: SortedSet<Element>) {
     tree = tree.union(other.tree, by: .countingMatches)
   }
 
-  /// Inserts all the elements from a sequence into this sorted array.
+  /// Inserts all the elements from a sequence into this sorted multiset.
   @inlinable
   public mutating func insert<S: Sequence>(contentsOf seq: S)
   where S.Element == Element {
@@ -569,11 +531,10 @@ extension SortedArray {
   }
 }
 
-extension SortedArray {
-  /// Removes and returns the first key-value pair of the dictionary if the
-  /// dictionary isn't empty.
+extension SortedMultiset {
+  /// Removes and returns the first element of the multiset if it isn't empty.
   ///
-  /// - Returns: The first key-value pair of the dictionary if the dictionary
+  /// - Returns: The first element of the multiset if the multiset
   ///   is not empty; otherwise, `nil`.
   ///
   /// - Complexity: O(log(`count`))
@@ -583,8 +544,8 @@ extension SortedArray {
     return remove(at: startIndex)
   }
 
-  /// Remove and return the largest member in this sorted array, or return `nil`
-  /// if the sorted array is empty.
+  /// Remove and return the largest member in this sorted multiset, or return
+  /// `nil` if the sorted multiset is empty.
   ///
   /// - Complexity: O(log(`count`))
   @inlinable
@@ -624,8 +585,8 @@ extension SortedArray {
     }
   }
 
-  /// Remove and return the first instance of `member` from the sorted array,
-  /// or return `nil` if the sorted array contains no instances of `member`.
+  /// Remove and return the first instance of `member` from the sorted multiset,
+  /// or return `nil` if the sorted multiset contains no instances of `member`.
   ///
   /// - Complexity: O(log(`count`))
   @inlinable
@@ -634,7 +595,7 @@ extension SortedArray {
     return tree.remove(member, at: .first)?.0
   }
 
-  /// Remove and return the smallest member in this sorted array.
+  /// Remove and return the smallest member in this sorted multiset.
   ///
   /// - Complexity: O(log(`count`))
   @inlinable
@@ -643,7 +604,7 @@ extension SortedArray {
     return tree.removeFirst().0
   }
 
-  /// Remove the smallest `n` members from this sorted array.
+  /// Remove the smallest `n` members from this sorted multiset.
   ///
   /// - Complexity: O(log(`count`))
   @inlinable
@@ -651,7 +612,7 @@ extension SortedArray {
     tree.removeFirst(n)
   }
 
-  /// Remove and return the largest member in this sorted array.
+  /// Remove and return the largest member in this sorted multiset.
   ///
   /// - Complexity: O(log(`count`))
   @inlinable
@@ -660,7 +621,7 @@ extension SortedArray {
     return tree.removeLast().0
   }
 
-  /// Remove the largest `n` members from this sorted array.
+  /// Remove the largest `n` members from this sorted multiset.
   ///
   /// - Complexity: O(log(`count`))
   @inlinable
@@ -668,7 +629,7 @@ extension SortedArray {
     tree.removeLast(n)
   }
 
-  /// Remove a subrange from tree
+  /// Remove a subrange from the multiset
   ///
   /// - Complexity: O(log(`count`) + `n`) where `n` is the length of the range
   @inlinable
@@ -676,7 +637,7 @@ extension SortedArray {
     tree.removeSubrange(range.lowerBound._base ..< range.upperBound._base)
   }
 
-  /// Remove a subrange from tree
+  /// Remove a subrange from the multiset
   ///
   /// - Complexity: O(log(`count`) + `n`) where `n` is the length of the range
   @inlinable
@@ -693,15 +654,15 @@ extension SortedArray {
     tree.removeAll(where: predicate)
   }
 
-  /// Remove all members from this sorted array.
+  /// Remove all members from this sorted multiset.
   @inlinable
   public mutating func removeAll() {
     tree.removeAll()
   }
 }
 
-extension SortedArray {
-  /// Return an `Array` containing the members of this sorted array, in
+extension SortedMultiset {
+  /// Return an `Array` containing the members of this sorted multiset, in
   /// ascending order.
   ///
   /// `SortedSet` already keeps its elements sorted, so this is equivalent to
@@ -710,22 +671,22 @@ extension SortedArray {
   /// - Complexity: O(`count`)
   @inlinable
   public func sorted() -> [Element] {
-    // The sorted array is already sorted.
+    // The sorted multiset is already sorted.
     return Array(self)
   }
 }
 
-extension SortedArray: Equatable {
+extension SortedMultiset: Equatable {
   /// Return `true` iff `self` and `other` contain the same number of instances
   /// of all the same elements.
   ///
   /// This method skips over shared subtrees when possible; this can drastically
-  /// improve performance when the two sorted arrays are divergent mutations
+  /// improve performance when the two sorted multisets are divergent mutations
   /// originating from the same value.
   ///
   /// - Complexity:  O(`count`)
   @inlinable
-  public func elementsEqual(_ other: SortedArray<Element>) -> Bool {
+  public func elementsEqual(_ other: SortedMultiset<Element>) -> Bool {
     return self.tree.elementsEqual(other.tree, by: { $0.0 == $1.0 })
   }
 
@@ -733,20 +694,20 @@ extension SortedArray: Equatable {
   /// multiplicities.
   ///
   /// This function skips over shared subtrees when possible; this can
-  /// drastically improve performance when the two sorted arrays are divergent
-  /// mutations originating from the same value.
+  /// drastically improve performance when the two sorted multisets are
+  /// divergent mutations originating from the same value.
   ///
   /// - Complexity: O(`count`)
   @inlinable
   public static func ==(
-    a: SortedArray<Element>,
-    b: SortedArray<Element>
+    a: SortedMultiset<Element>,
+    b: SortedMultiset<Element>
   ) -> Bool {
     return a.elementsEqual(b)
   }
 }
 
-extension SortedArray: Hashable where Key: Hashable {
+extension SortedMultiset: Hashable where Key: Hashable {
   @inlinable
   public func hash(into hasher: inout Hasher) {
     for item in self {
@@ -755,24 +716,24 @@ extension SortedArray: Hashable where Key: Hashable {
   }
 }
 
-extension SortedArray: CustomReflectable {
-  /// A mirror that reflects the sorted array.
+extension SortedMultiset: CustomReflectable {
+  /// A mirror that reflects the sorted multiset.
   public var customMirror: Mirror {
     return Mirror(self, unlabeledChildren: self, displayStyle: .collection)
   }
 }
 
-extension SortedArray: CustomStringConvertible, CustomDebugStringConvertible {
-  /// A textual representation of this sorted array.
+extension SortedMultiset: CustomStringConvertible, CustomDebugStringConvertible {
+  /// A textual representation of this sorted multiset.
   @inlinable
   public var description: String {
     let contents = self.map { String(reflecting: $0) }
     return "[" + contents.joined(separator: ", ") + "]"
   }
 
-  /// A textual representation of this sorted array, suitable for debugging.
+  /// A textual representation of this sorted multiset, suitable for debugging.
   @inlinable
   public var debugDescription: String {
-    return "SortedArray(" + description + ")"
+    return "SortedMultiset(" + description + ")"
   }
 }

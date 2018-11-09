@@ -13,7 +13,7 @@
 /// An iterator for all elements stored in a B-tree, in ascending key order.
 @usableFromInline
 @_fixed_layout
-internal struct _BTreeIterator<Key: Equatable, Value>: IteratorProtocol {
+internal struct _BTreeIterator<Key: Comparable, Value>: IteratorProtocol {
   @usableFromInline
   internal typealias Element = (key: Key, value: Value)
   @usableFromInline
@@ -80,7 +80,7 @@ internal struct _BTreeValueIterator<Value>: IteratorProtocol {
 /// An iterator for the keys stored in a B-tree without a value.
 @usableFromInline
 @_fixed_layout
-internal struct _BTreeKeyIterator<Key: Equatable>: IteratorProtocol {
+internal struct _BTreeKeyIterator<Key: Comparable>: IteratorProtocol {
   @usableFromInline
   internal typealias Base = _BTreeIterator<Key, Void>
   @usableFromInline
@@ -119,7 +119,7 @@ internal struct _BTreeKeyIterator<Key: Equatable>: IteratorProtocol {
 /// variants of the same navigation methods.
 @usableFromInline
 internal protocol _BTreePath {
-  associatedtype Key: Equatable
+  associatedtype Key: Comparable
   associatedtype Value
 
   /// Create a new incomplete path focusing at the root of a tree.
@@ -459,17 +459,13 @@ extension _BTreePath {
         if slot >= 1 {
           let l = Node(node: node, slotRange: 0 ..< slot - 1)
           let s = node.elements[slot - 1]
-          left = Node.join(
-            left: l, separator: s, right: left!,
-            areInIncreasingOrder: node.areInIncreasingOrder)
+          left = Node.join(left: l, separator: s, right: left!)
         }
         let c = node.elements.count
         if slot <= c - 1 {
           let r = Node(node: node, slotRange: slot + 1 ..< c)
           let s = node.elements[slot]
-          right = Node.join(
-            left: right!, separator: s, right: r,
-            areInIncreasingOrder: node.areInIncreasingOrder)
+          right = Node.join(left: right!, separator: s, right: r)
         }
       }
     }
@@ -490,9 +486,7 @@ extension _BTreePath {
       } else if slot >= 1 {
         let l = Node(node: node, slotRange: 0 ..< slot - 1)
         let s = node.elements[slot - 1]
-        prefix = Node.join(
-          left: l, separator: s, right: prefix!,
-          areInIncreasingOrder: node.areInIncreasingOrder)
+        prefix = Node.join(left: l, separator: s, right: prefix!)
       }
     }
     return Tree(prefix!)
@@ -516,9 +510,7 @@ extension _BTreePath {
       if slot <= c - 1 {
         let r = Node(node: node, slotRange: slot + 1 ..< c)
         let s = node.elements[slot]
-        suffix = Node.join(
-          left: suffix!, separator: s, right: r,
-          areInIncreasingOrder: node.areInIncreasingOrder)
+        suffix = Node.join(left: suffix!, separator: s, right: r)
       }
     }
     return Tree(suffix!)
@@ -536,7 +528,7 @@ extension _BTreePath {
 ///
 @usableFromInline
 @_fixed_layout
-internal struct _BTreeWeakPath<Key: Equatable, Value>: _BTreePath {
+internal struct _BTreeWeakPath<Key: Comparable, Value>: _BTreePath {
   @usableFromInline
   @_fixed_layout
   struct Weak<T: AnyObject> {
@@ -691,7 +683,7 @@ internal struct _BTreeWeakPath<Key: Equatable, Value>: _BTreePath {
 /// for use in generators.
 @usableFromInline
 @_fixed_layout
-internal struct _BTreeStrongPath<Key: Equatable, Value>: _BTreePath {
+internal struct _BTreeStrongPath<Key: Comparable, Value>: _BTreePath {
   @usableFromInline
   typealias Node = _BTreeNode<Key, Value>
 
@@ -803,7 +795,7 @@ extension _BTree {
     precondition(offset >= 0 && offset <= count)
     makeUnique()
     let cursor = _BTreeCursor(_BTreeCursorPath(root: root, offset: offset))
-    root = Node(order: self.order, areInIncreasingOrder: areInIncreasingOrder)
+    root = Node(order: self.order)
     defer { self.root = cursor.finish() }
     return try body(cursor)
   }
@@ -835,7 +827,7 @@ extension _BTree {
   ) rethrows -> R {
     makeUnique()
     let cursor = _BTreeCursor(_BTreeCursorPath(endOf: root))
-    root = Node(order: self.order, areInIncreasingOrder: areInIncreasingOrder)
+    root = Node(order: self.order)
     defer { self.root = cursor.finish() }
     return try body(cursor)
   }
@@ -858,7 +850,7 @@ extension _BTree {
     makeUnique()
     let cursor = _BTreeCursor(_BTreeCursorPath(
       root: root, key: key, choosing: selector))
-    root = Node(order: self.order, areInIncreasingOrder: areInIncreasingOrder)
+    root = Node(order: self.order)
     defer { self.root = cursor.finish() }
     return try body(cursor)
   }
@@ -879,7 +871,7 @@ extension _BTree {
     makeUnique()
     let cursor = _BTreeCursor(_BTreeCursorPath(
       root: root, slotsFrom: index.state))
-    root = Node(order: self.order, areInIncreasingOrder: areInIncreasingOrder)
+    root = Node(order: self.order)
     defer { self.root = cursor.finish() }
     return try body(cursor)
   }
@@ -902,7 +894,7 @@ extension _BTree {
 ///
 @usableFromInline
 @_fixed_layout
-internal struct _BTreeCursorPath<Key: Equatable, Value>: _BTreePath {
+internal struct _BTreeCursorPath<Key: Comparable, Value>: _BTreePath {
   @usableFromInline
   typealias Tree = _BTree<Key, Value>
   @usableFromInline
@@ -985,8 +977,7 @@ internal struct _BTreeCursorPath<Key: Equatable, Value>: _BTreePath {
   /// Invalidate this cursor.
   @inlinable
   mutating func invalidate() {
-    root = _BTreeNode<Key, Value>(
-      order: root.order, areInIncreasingOrder: root.areInIncreasingOrder)
+    root = _BTreeNode<Key, Value>(order: root.order)
     count = 0
     offset = 0
     _path = []
@@ -1113,8 +1104,7 @@ internal struct _BTreeCursorPath<Key: Equatable, Value>: _BTreePath {
         self.root = _BTreeNode<Key, Value>(
           left: left,
           separator: splinter.separator,
-          right: right,
-          areInIncreasingOrder: self.root.areInIncreasingOrder)
+          right: right)
         _path.insert(self.root, at: 0)
         _slots.insert(slot > left.elements.count ? 1 : 0, at: 0)
       }
@@ -1155,7 +1145,7 @@ internal struct _BTreeCursorPath<Key: Equatable, Value>: _BTreePath {
 /// using a cursor to do the same only takes O(log *n* + *k*).
 @usableFromInline
 @_fixed_layout
-internal final class _BTreeCursor<Key: Equatable, Value> {
+internal final class _BTreeCursor<Key: Comparable, Value> {
   @usableFromInline
   internal typealias Element = (key: Key, value: Value)
   @usableFromInline
@@ -1388,7 +1378,7 @@ internal final class _BTreeCursor<Key: Equatable, Value> {
   ///   and *m* is the number of elements in the sequence.
   @inlinable
   internal func insert<S: Sequence>(_ elements: S) where S.Element == Element {
-    insertWithoutCloning(_BTree(sortedElements: elements, areInIncreasingOrder: state.node.areInIncreasingOrder).root)
+    insertWithoutCloning(_BTree(sortedElements: elements).root)
   }
 
   @inlinable
@@ -1413,8 +1403,7 @@ internal final class _BTreeCursor<Key: Equatable, Value> {
       let j = Node.join(
         left: finish(),
         separator: separator,
-        right: root,
-        areInIncreasingOrder: root.areInIncreasingOrder)
+        right: root)
       state = State(endOf: j)
     } else if offset == 0 {
       // Prepend
@@ -1422,8 +1411,7 @@ internal final class _BTreeCursor<Key: Equatable, Value> {
       let j = Node.join(
         left: root,
         separator: separator,
-        right: finish(),
-        areInIncreasingOrder: root.areInIncreasingOrder)
+        right: finish())
       state = State(root: j, offset: offset + c)
     } else {
       // Insert in middle
@@ -1434,13 +1422,11 @@ internal final class _BTreeCursor<Key: Equatable, Value> {
       let t1 = Node.join(
         left: prefix.root,
         separator: sep1,
-        right: root,
-        areInIncreasingOrder: root.areInIncreasingOrder)
+        right: root)
       let t2 = Node.join(
         left: t1,
         separator: sep2,
-        right: suffix.root,
-        areInIncreasingOrder: root.areInIncreasingOrder)
+        right: suffix.root)
       state = State(root: t2, offset: offset + c)
     }
   }
@@ -1520,8 +1506,7 @@ internal final class _BTreeCursor<Key: Equatable, Value> {
       let j = Node.join(
         left: left.root,
         separator: separator,
-        right: right.root,
-        areInIncreasingOrder: state.root.areInIncreasingOrder)
+        right: right.root)
       state = State(root: j, offset: offset)
     }
   }
@@ -1532,9 +1517,7 @@ internal final class _BTreeCursor<Key: Equatable, Value> {
   ///   trees; O(*n*) otherwise, where *n* is the length of the tree.
   @inlinable
   internal func removeAll() {
-    state = State(startOf: Node(
-      order: state.root.order,
-      areInIncreasingOrder: state.root.areInIncreasingOrder))
+    state = State(startOf: Node(order: state.root.order))
   }
 
   /// Remove all elements before (and if `inclusive` is true, including) the
@@ -1593,23 +1576,17 @@ internal final class _BTreeCursor<Key: Equatable, Value> {
   internal func extract(_ n: Int) -> Tree {
     precondition(isValid && n >= 0 && self.offset + n <= count)
     if n == 0 {
-      return Tree(
-        order: state.root.order,
-        areInIncreasingOrder: state.root.areInIncreasingOrder)
+      return Tree(order: state.root.order)
     }
     if n == 1 {
       let element = remove()
-      var tree = Tree(
-        order: state.root.order,
-        areInIncreasingOrder: state.root.areInIncreasingOrder)
+      var tree = Tree(order: state.root.order)
       tree.insert(element)
       return tree
     }
     if n == count {
       let node = state.finish()
-      state = State(startOf: Node(
-        order: node.order,
-        areInIncreasingOrder: state.root.areInIncreasingOrder))
+      state = State(startOf: Node(order: node.order))
       return Tree(node)
     }
 
@@ -1625,9 +1602,7 @@ internal final class _BTreeCursor<Key: Equatable, Value> {
     state = State(root: tail.root, offset: n - 1)
     var (mid, sep2, right) = state.split()
     state.invalidate()
-    let j = Node.join(
-      left: left.root, separator: sep2, right: right.root,
-      areInIncreasingOrder: state.root.areInIncreasingOrder)
+    let j = Node.join(left: left.root, separator: sep2, right: right.root)
     state = State(root: j, offset: offset)
     mid.insert(sep1, atOffset: 0)
     return mid

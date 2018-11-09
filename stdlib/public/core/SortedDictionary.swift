@@ -38,7 +38,7 @@
 /// dictionaries.
 ///
 @_fixed_layout
-public struct SortedDictionary<Key: Equatable, Value> {
+public struct SortedDictionary<Key: Comparable, Value> {
   @_fixed_layout
   public struct Index: Comparable {
     @usableFromInline
@@ -106,13 +106,9 @@ extension SortedDictionary {
   /// - Complexity: O(*n* * log(*n*)) where *n* is the number of items in
   /// `elements`.
   @inlinable
-  public init<S: Sequence>(
-    unsortedElements elements: S,
-    areInIncreasingOrder: @escaping (Key, Key) -> Bool
-  ) where S.Element == Element {
-    self.tree = Tree(
-      elements, dropDuplicates: true,
-      areInIncreasingOrder: areInIncreasingOrder)
+  public init<S: Sequence>(unsortedElements elements: S)
+  where S.Element == Element {
+    self.tree = Tree(elements, dropDuplicates: true)
   }
 
   /// Initialize a new sorted dictionary from a sorted sequence of elements.
@@ -122,67 +118,27 @@ extension SortedDictionary {
   ///
   /// - Complexity: O(*n*) where *n* is the number of items in `elements`.
   @inlinable
-  public init<S: Sequence>(
-    sortedElements elements: S,
-    areInIncreasingOrder: @escaping (Key, Key) -> Bool
-  ) where S.Element == Element {
-    self.tree = Tree(
-      sortedElements: elements, dropDuplicates: true,
-      areInIncreasingOrder: areInIncreasingOrder)
+  public init<S: Sequence>(sortedElements elements: S)
+  where S.Element == Element {
+    self.tree = Tree(sortedElements: elements, dropDuplicates: true)
   }
 
   /// Initialize a new empty sorted dictionary.
   @inlinable
-  public init(areInIncreasingOrder: @escaping (Key, Key) -> Bool) {
-    self.tree = Tree(areInIncreasingOrder: areInIncreasingOrder)
-  }
-}
-
-extension SortedDictionary where Key: Comparable {
-  /// Create an empty sorted dictionary using the ordering defined on `Key` by
-  /// its `Comparable` conformance.
-  @inlinable
   public init() {
-    self.tree = Tree(areInIncreasingOrder: <)
-  }
-
-  /// Create a sorted dictionary from a finite sequence of items. The sequence
-  /// need not be sorted.
-  ///
-  /// - Complexity: O(*n* * log(*n*)), where *n* is the number of items in the
-  ///   sequence.
-  public init<S: Sequence>(unsortedElements elements: S)
-  where S.Element == Element {
-    self.init(unsortedElements: elements, areInIncreasingOrder: <)
-  }
-
-  /// Create a sorted dictionary from a sorted finite sequence of items.
-  ///
-  /// - Complexity: O(*n*), where *n* is the number of items in the sequence.
-  public init<S: Sequence>(
-    sortedElements elements: S
-  ) where S.Element == Element {
-    self.init(sortedElements: elements, areInIncreasingOrder: <)
+    self.tree = Tree()
   }
 }
 
-extension SortedDictionary: ExpressibleByDictionaryLiteral
-where Key: Comparable {
+extension SortedDictionary: ExpressibleByDictionaryLiteral {
   /// Initialize a new sorted dictionary from the given elements.
   @inlinable
   public init(dictionaryLiteral elements: (Key, Value)...) {
-    self.tree = Tree(elements, dropDuplicates: true, areInIncreasingOrder: <)
+    self.tree = Tree(elements, dropDuplicates: true)
   }
 }
 
 extension SortedDictionary: SortedInsertableCollection {
-  /// A predicate that returns `true` if its first argument should be ordered
-  /// before its second argument; otherwise, `false`.
-  @inlinable
-  public var areInIncreasingOrder: (Key, Key) -> Bool {
-    return tree.areInIncreasingOrder
-  }
-
   /// Returns the index for the given key, or `nil` if the key is not present in
   /// this sorted dictionary.
   ///
@@ -402,6 +358,7 @@ extension SortedDictionary: BidirectionalCollection {
   }
 }
 
+/* See if a general offset solution will be accepted by swift evo first.
 extension SortedDictionary {
   /// Returns the index of the element at `offset`.
   ///
@@ -461,6 +418,7 @@ extension SortedDictionary {
     return tree.setValue(atOffset: offset, to: value)
   }
 }
+*/
 
 extension SortedDictionary {
   /// Call `body` on each element in `self` in ascending key order.
@@ -517,11 +475,11 @@ extension SortedDictionary {
     return result
   }
 
-  /// Returns a new soretd dictionary containing the keys of this soretd
+  /// Returns a new sorted dictionary containing the keys of this sorted
   /// dictionary with the values transformed by the given closure.
   ///
   /// - Parameter transform: A closure that transforms a value. `transform`
-  ///   accepts each value of the soretd dictionary as its parameter and returns
+  ///   accepts each value of the sorted dictionary as its parameter and returns
   ///   a transformed value of the same or of a different type.
   /// - Returns: A sorted dictionary containing the keys and transformed values
   ///   of this dictionary.
@@ -531,8 +489,7 @@ extension SortedDictionary {
   public func mapValues<T>(
     _ transform: (Value) throws -> T
   ) rethrows -> SortedDictionary<Key, T> {
-    var result = SortedDictionary<Key, T>(
-      sortedElements: [], areInIncreasingOrder: areInIncreasingOrder)
+    var result = SortedDictionary<Key, T>(sortedElements: [])
     var i = startIndex
     while i < endIndex {
       result.insert((self[i].key, try transform(self[i].value)))
@@ -566,9 +523,7 @@ extension SortedDictionary {
   // FIXME: Use a custom wrapper
   @inlinable
   public var keys: SortedSet<Key> {
-    return SortedSet(
-      sortedElements: map { $0.0 },
-      areInIncreasingOrder: areInIncreasingOrder)
+    return SortedSet(sortedElements: map { $0.0 })
   }
 
   /// A collection containing just the values in this sorted dictionary, in
@@ -583,7 +538,7 @@ extension SortedDictionary {
   ///
   /// - Complexity: O(log(*n*)), where *n* is the length of the dictionary
   @inlinable
-  public subscript(key key: Key) -> Value? {
+  public subscript(key: Key) -> Value? {
     get {
       return tree.value(of: key)
     }
@@ -791,7 +746,7 @@ extension SortedDictionary {
     tree.removeLast(n)
   }
 
-  /// Remove a subrange from tree
+  /// Remove a subrange from the dictionary
   ///
   /// - Complexity: O(log(`count`) + `n`) where `n` is the length of the range
   @inlinable
@@ -799,7 +754,7 @@ extension SortedDictionary {
     tree.removeSubrange(range.lowerBound._base ..< range.upperBound._base)
   }
 
-  /// Remove a subrange from tree
+  /// Remove a subrange from the dictionary
   ///
   /// - Complexity: O(log(`count`) + `n`) where `n` is the length of the range
   @inlinable
@@ -823,7 +778,7 @@ extension SortedDictionary {
   /// - Complexity: O(`count`)
   @inlinable
   public mutating func removeAll() {
-    tree = Tree(areInIncreasingOrder: tree.areInIncreasingOrder)
+    tree = Tree()
   }
 }
 
@@ -840,8 +795,7 @@ extension SortedDictionary {
   public __consuming func filter(
     _ isIncluded: (Element) throws -> Bool
   ) rethrows -> SortedDictionary<Key, Value> {
-    var result = SortedDictionary<Key, Value>(
-      areInIncreasingOrder: areInIncreasingOrder)
+    var result = SortedDictionary<Key, Value>()
     for element in self {
       if try isIncluded(element) {
         result.insert((element.key, element.value))
@@ -871,19 +825,6 @@ extension SortedDictionary {
 }
 
 extension SortedDictionary: Equatable where Value: Equatable {
-  /// Return `true` iff `self` and `other` contain equivalent elements.
-  ///
-  /// This method skips over shared subtrees when possible; this can drastically
-  /// improve performance when the
-  /// two sorted dictionarys are divergent mutations originating from the same
-  /// value.
-  ///
-  /// - Complexity:  O(`count`)
-  @inlinable
-  public func elementsEqual(_ other: SortedDictionary) -> Bool {
-    return tree.elementsEqual(other.tree)
-  }
-
   /// Return true iff `a` is equal to `b`.
   ///
   /// This function skips over shared subtrees when possible; this can
@@ -891,7 +832,7 @@ extension SortedDictionary: Equatable where Value: Equatable {
   /// divergent mutations originating from the same value.
   @inlinable
   public static func ==(a: SortedDictionary, b: SortedDictionary) -> Bool {
-    return a.elementsEqual(b)
+    return a.tree.elementsEqual(b.tree)
   }
 }
 

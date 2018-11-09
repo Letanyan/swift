@@ -12,7 +12,7 @@
 
 @usableFromInline
 @_fixed_layout
-internal struct _BTree<Key: Equatable, Value> {
+internal struct _BTree<Key: Comparable, Value> {
   @usableFromInline
   internal typealias Element = (key: Key, value: Value)
   @usableFromInline
@@ -29,20 +29,16 @@ internal struct _BTree<Key: Equatable, Value> {
   /// The order of the tree is set automatically based on the size of `Element`
   /// type.
   @inlinable
-  internal init(areInIncreasingOrder: @escaping (Key, Key) -> Bool) {
-    self.init(
-      order: Node.defaultOrder, areInIncreasingOrder: areInIncreasingOrder)
+  internal init() {
+    self.init(order: Node.defaultOrder)
   }
 
   /// Initialize a new B-tree with no elements.
   ///
   /// - Parameter order: The maximum number of children for tree nodes.
   @inlinable
-  internal init(
-    order: Int,
-    areInIncreasingOrder: @escaping (Key, Key) -> Bool
-  ) {
-    self.root = Node(order: order, areInIncreasingOrder: areInIncreasingOrder)
+  internal init(order: Int) {
+    self.root = Node(order: order)
   }
 
   /// The order of this tree, i.e., the maximum number of children for tree
@@ -54,30 +50,6 @@ internal struct _BTree<Key: Equatable, Value> {
   /// root node.
   @inlinable
   internal var depth: Int { return root.depth }
-
-  /// defines the order in which elements must follow
-  @inlinable
-  internal var areInIncreasingOrder: (Key, Key) -> Bool {
-    return root.areInIncreasingOrder
-  }
-}
-
-extension _BTree where Key: Comparable {
-  /// Initialize a new B-tree with no elements.
-  /// The order of the tree is set automatically based on the size of `Element`
-  /// type.
-  @inlinable
-  internal init() {
-    self.init(order: Node.defaultOrder, areInIncreasingOrder: <)
-  }
-
-  /// Initialize a new B-tree with no elements.
-  ///
-  /// - Parameter order: The maximum number of children for tree nodes.
-  @inlinable
-  internal init(order: Int) {
-    self.root = Node(order: order, areInIncreasingOrder: <)
-  }
 }
 
 extension _BTree {
@@ -99,28 +71,6 @@ extension _BTree {
   internal mutating func makeUnique() {
     guard !isUnique else { return }
     root = root.clone()
-  }
-}
-
-extension _BTree {
-  @inlinable
-  internal func lesserThan(_ a: Key, _ b: Key) -> Bool {
-    return areInIncreasingOrder(a, b)
-  }
-
-  @inlinable
-  internal func greaterThan(_ a: Key, _ b: Key) -> Bool {
-    return !areInIncreasingOrder(a, b) && a != b
-  }
-
-  @inlinable
-  internal func lesserThanOrEqual(_ a: Key, _ b: Key) -> Bool {
-    return areInIncreasingOrder(a, b) || a == b
-  }
-
-  @inlinable
-  internal func greaterThanOrEqual(_ a: Key, _ b: Key) -> Bool {
-    return !areInIncreasingOrder(a, b)
   }
 }
 
@@ -668,17 +618,12 @@ extension _BTree {
     var pos = count - offset
     var splinter: _BTreeSplinter<Key, Value>? = nil
     var element = element
-    let areInIncreasingOrderCopy = self.areInIncreasingOrder
     edit(
       descend: { node in
         let slot = node.slot(atOffset: node.count - pos)
-        assert(slot.index == 0
-          || node.elements[slot.index - 1].0 == element.0
-          || areInIncreasingOrderCopy(
-            node.elements[slot.index - 1].0, element.0))
-
+        assert(slot.index == 0 || node.elements[slot.index - 1].0 <= element.0)
         assert(slot.index == node.elements.count
-          || !areInIncreasingOrderCopy(node.elements[slot.index].0, element.0))
+          || node.elements[slot.index].0 >= element.0)
 
         if !slot.match {
           // Continue descending.
@@ -708,9 +653,7 @@ extension _BTree {
         }
     })
     if let s = splinter {
-      root = Node(
-        left: root, separator: s.separator, right: s.node,
-        areInIncreasingOrder: root.areInIncreasingOrder)
+      root = Node(left: root, separator: s.separator, right: s.node)
     }
   }
 
@@ -751,9 +694,7 @@ extension _BTree {
       }
     )
     if let s = splinter {
-      root = Node(
-        left: root, separator: s.separator, right: s.node,
-        areInIncreasingOrder: root.areInIncreasingOrder)
+      root = Node(left: root, separator: s.separator, right: s.node)
     }
   }
 
@@ -826,9 +767,7 @@ extension _BTree {
       }
     )
     if let s = splinter {
-      root = Node(
-        left: root, separator: s.separator, right: s.node,
-        areInIncreasingOrder: root.areInIncreasingOrder)
+      root = Node(left: root, separator: s.separator, right: s.node)
     }
     return old
   }
@@ -902,9 +841,7 @@ extension _BTree {
         }
     })
     if let s = splinter {
-      root = Node(
-        left: root, separator: s.separator, right: s.node,
-        areInIncreasingOrder: root.areInIncreasingOrder)
+      root = Node(left: root, separator: s.separator, right: s.node)
     }
     return old
   }
@@ -1125,8 +1062,7 @@ extension _BTree {
   /// Remove all elements from this tree.
   @inlinable
   internal mutating func removeAll() {
-    root = Node(
-      order: root.order, areInIncreasingOrder: root.areInIncreasingOrder)
+    root = Node(order: root.order)
   }
 }
 
@@ -1144,7 +1080,7 @@ extension _BTree {
   internal func prefix(_ maxLength: Int) -> _BTree {
     precondition(maxLength >= 0)
     if maxLength == 0 {
-      return _BTree(order: order, areInIncreasingOrder: areInIncreasingOrder)
+      return _BTree(order: order)
     }
     if maxLength >= count {
       return self
@@ -1219,7 +1155,7 @@ extension _BTree {
   internal func suffix(_ maxLength: Int) -> _BTree {
     precondition(maxLength >= 0)
     if maxLength == 0 {
-      return _BTree(order: order, areInIncreasingOrder: areInIncreasingOrder)
+      return _BTree(order: order)
     }
     if maxLength >= count {
       return self
@@ -1277,8 +1213,7 @@ extension _BTree {
     let end = range.upperBound.state.offset
     precondition(0 <= start && start <= end && end <= self.count)
     if start == end {
-      return _BTree(
-        order: self.order, areInIncreasingOrder: areInIncreasingOrder)
+      return _BTree(order: self.order)
     }
     if start == 0 {
       return prefix(upTo: range.upperBound)
@@ -1293,7 +1228,7 @@ extension _BTree {
   internal func subtree(withOffsets offsets: Range<Int>) -> _BTree<Key, Value> {
     precondition(offsets.lowerBound >= 0 && offsets.upperBound <= count)
     if offsets.count == 0 {
-      return _BTree(order: order, areInIncreasingOrder: areInIncreasingOrder)
+      return _BTree(order: order)
     }
     return dropFirst(offsets.lowerBound).prefix(offsets.count)
   }
@@ -1304,7 +1239,7 @@ extension _BTree {
   /// - Complexity: O(log *n*), where *n* is the length of the tree.
   @inlinable
   internal func subtree(from start: Key, to end: Key) -> _BTree<Key, Value> {
-    precondition(lesserThanOrEqual(start, end))
+    precondition(start <= end)
     return suffix(from: start).prefix(upTo: end)
   }
 
@@ -1317,7 +1252,7 @@ extension _BTree {
     from start: Key,
     through stop: Key
   ) -> _BTree<Key, Value> {
-    precondition(lesserThanOrEqual(start, stop))
+    precondition(start <= stop)
     return suffix(from: start).prefix(through: stop)
   }
 }
@@ -1337,7 +1272,7 @@ extension _BTree {
 ///   a B-tree.
 @usableFromInline
 @_fixed_layout
-internal struct _BTreeIndex<Key: Equatable, Value> {
+internal struct _BTreeIndex<Key: Comparable, Value> {
   @usableFromInline
   internal typealias Node = _BTreeNode<Key, Value>
   @usableFromInline
@@ -1516,11 +1451,11 @@ extension _BTree {
         if a.key == b.key {
           return false
         }
-        while lesserThan(a.key, b.key) {
+        while a.key < b.key {
           a.nextPart(until: .excluding(b.key))
           if a.isAtEnd { break outer }
         }
-        while lesserThan(b.key, a.key) {
+        while b.key < a.key {
           b.nextPart(until: .excluding(a.key))
           if b.isAtEnd { break outer }
         }
@@ -1646,10 +1581,10 @@ extension _BTree {
           fatalError("unhandled unknown case")
         }
       }
-      if lesserThan(a.key, b.key) {
+      if a.key < b.key {
         return false
       }
-      while lesserThan(b.key, a.key) {
+      while b.key < a.key {
         knownStrict = true
         b.nextPart(until: .excluding(a.key))
         if b.isAtEnd { return false }

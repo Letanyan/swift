@@ -40,7 +40,7 @@ internal let bTreeNodeSize = 16383
 /// their keys.
 @usableFromInline
 @_fixed_layout
-internal final class _BTreeNode<Key: Equatable, Value> {
+internal final class _BTreeNode<Key: Comparable, Value> {
   @usableFromInline
   typealias Iterator = _BTreeIterator<Key, Value>
   @usableFromInline
@@ -50,9 +50,6 @@ internal final class _BTreeNode<Key: Equatable, Value> {
 
   /// FIXME: Allocate keys/values/children in a single buffer
 
-  /// The order which elements must follow
-  @usableFromInline
-  internal var areInIncreasingOrder: (Key, Key) -> Bool
   /// The elements stored in this node, sorted by are in increasing order.
   @usableFromInline
   internal var elements: [Element]
@@ -83,8 +80,7 @@ internal final class _BTreeNode<Key: Equatable, Value> {
     order: Int,
     elements: [Element],
     children: [_BTreeNode],
-    count: Int,
-    areInIncreasingOrder: @escaping (Key, Key) -> Bool
+    count: Int
   ) {
     assert(children.count == 0 || elements.count == children.count - 1)
     self._order = numericCast(order)
@@ -92,7 +88,6 @@ internal final class _BTreeNode<Key: Equatable, Value> {
     self.children = children
     self.count = count
     self._depth = (children.count == 0 ? 0 : children[0]._depth + 1)
-    self.areInIncreasingOrder = areInIncreasingOrder
     let idx = children.firstIndex { $0._depth + (1 as Int32) != self._depth }
     assert(idx == nil)
   }
@@ -107,92 +102,8 @@ extension _BTreeNode {
   }
 
   @inlinable
-  internal convenience init(
-    order: Int = Node.defaultOrder,
-    areInIncreasingOrder: @escaping (Key, Key) -> Bool
-  ) {
-    self.init(
-      order: order,
-      elements: [],
-      children: [],
-      count: 0,
-      areInIncreasingOrder: areInIncreasingOrder)
-  }
-
-  @inlinable
-  internal convenience init(
-    left: Node,
-    separator: (key: Key, value: Value),
-    right: Node,
-    areInIncreasingOrder: @escaping (Key, Key) -> Bool
-  ) {
-    assert(left.order == right.order)
-    assert(left.depth == right.depth)
-    self.init(
-      order: left.order,
-      elements: [separator],
-      children: [left, right],
-      count: left.count + 1 + right.count,
-      areInIncreasingOrder: areInIncreasingOrder)
-  }
-
-  @inlinable
-  internal convenience init(
-    node: _BTreeNode,
-    slotRange: CountableRange<Int>
-  ) {
-    if node.isLeaf {
-      let elements = Array(node.elements[slotRange])
-      self.init(
-        order: node.order,
-        elements: elements,
-        children: [],
-        count: elements.count,
-        areInIncreasingOrder: node.areInIncreasingOrder)
-    } else if slotRange.count == 0 {
-      let n = node.children[slotRange.lowerBound]
-      self.init(
-        order: n.order,
-        elements: n.elements,
-        children: n.children,
-        count: n.count,
-        areInIncreasingOrder: node.areInIncreasingOrder)
-    } else {
-      let elements = Array(node.elements[slotRange])
-      let children = Array(
-        node.children[slotRange.lowerBound ... slotRange.upperBound])
-      let count = children.reduce(elements.count) { $0 + $1.count }
-      self.init(
-        order: node.order,
-        elements: elements,
-        children: children,
-        count: count,
-        areInIncreasingOrder: node.areInIncreasingOrder)
-    }
-  }
-}
-
-extension _BTreeNode where Key: Comparable {
-  @inlinable
-  internal convenience init(
-    order: Int,
-    elements: [Element],
-    children: [_BTreeNode],
-    count: Int
-  ) {
-    self.init(
-      order: order, elements: elements, children: children, count: count,
-      areInIncreasingOrder: <)
-  }
-
-  @inlinable
   internal convenience init(order: Int = Node.defaultOrder) {
-    self.init(
-      order: order,
-      elements: [],
-      children: [],
-      count: 0,
-      areInIncreasingOrder: <)
+    self.init(order: order, elements: [], children: [], count: 0)
   }
 
   @inlinable
@@ -207,8 +118,39 @@ extension _BTreeNode where Key: Comparable {
       order: left.order,
       elements: [separator],
       children: [left, right],
-      count: left.count + 1 + right.count,
-      areInIncreasingOrder: <)
+      count: left.count + 1 + right.count)
+  }
+
+  @inlinable
+  internal convenience init(
+    node: _BTreeNode,
+    slotRange: CountableRange<Int>
+  ) {
+    if node.isLeaf {
+      let elements = Array(node.elements[slotRange])
+      self.init(
+        order: node.order,
+        elements: elements,
+        children: [],
+        count: elements.count)
+    } else if slotRange.count == 0 {
+      let n = node.children[slotRange.lowerBound]
+      self.init(
+        order: n.order,
+        elements: n.elements,
+        children: n.children,
+        count: n.count)
+    } else {
+      let elements = Array(node.elements[slotRange])
+      let children = Array(
+        node.children[slotRange.lowerBound ... slotRange.upperBound])
+      let count = children.reduce(elements.count) { $0 + $1.count }
+      self.init(
+        order: node.order,
+        elements: elements,
+        children: children,
+        count: count)
+    }
   }
 }
 
@@ -232,8 +174,7 @@ extension _BTreeNode {
       order: order,
       elements: elements,
       children: children,
-      count: count,
-      areInIncreasingOrder: areInIncreasingOrder)
+      count: count)
   }
 }
 
@@ -258,28 +199,6 @@ extension _BTreeNode {
   @inlinable
   internal var isBalanced: Bool {
     return elements.count >= minKeys && elements.count <= maxKeys
-  }
-}
-
-extension _BTreeNode {
-  @inlinable
-  func lesserThan(_ a: Key, _ b: Key) -> Bool {
-    return areInIncreasingOrder(a, b)
-  }
-
-  @inlinable
-  func greaterThan(_ a: Key, _ b: Key) -> Bool {
-    return !areInIncreasingOrder(a, b) && a != b
-  }
-
-  @inlinable
-  func lesserThanOrEqual(_ a: Key, _ b: Key) -> Bool {
-    return areInIncreasingOrder(a, b) || a == b
-  }
-
-  @inlinable
-  func greaterThanOrEqual(_ a: Key, _ b: Key) -> Bool {
-    return !areInIncreasingOrder(a, b)
   }
 }
 
@@ -374,7 +293,7 @@ extension _BTreeNode {
       var end = elements.count
       while start < end {
         let mid = start + (end - start) / 2
-        if lesserThan(elements[mid].0, key) {
+        if elements[mid].0 < key {
           start = mid + 1
         } else {
           end = mid
@@ -387,7 +306,7 @@ extension _BTreeNode {
       var end = elements.count - 1
       while start < end {
         let mid = start + (end - start + 1) / 2
-        if greaterThan(elements[mid].0, key) {
+        if elements[mid].0 > key {
           end = mid - 1
         } else {
           start = mid
@@ -399,7 +318,7 @@ extension _BTreeNode {
       var end = elements.count
       while start < end {
         let mid = start + (end - start) / 2
-        if lesserThanOrEqual(elements[mid].0, key) {
+        if elements[mid].0 <= key {
           start = mid + 1
         } else {
           end = mid
@@ -484,13 +403,13 @@ extension _BTreeNode {
   ) -> Bool {
     let firstKey = elements.first!.0
     let lastKey = elements.last!.0
-    if lesserThan(key, firstKey) {
+    if key < firstKey {
       return false
     }
     if key == firstKey && selector == .first {
       return false
     }
-    if greaterThan(key, lastKey) {
+    if key > lastKey {
       return false
     }
     if key == lastKey && (selector == .last || selector == .after) {
@@ -533,7 +452,7 @@ extension _BTreeNode {
 // MARK: Splitting
 @usableFromInline
 @_fixed_layout
-internal struct _BTreeSplinter<Key: Equatable, Value> {
+internal struct _BTreeSplinter<Key: Comparable, Value> {
   @usableFromInline
   var separator: (key: Key, value: Value)
   @usableFromInline
@@ -770,8 +689,7 @@ extension _BTreeNode {
   internal static func join(
     left: _BTreeNode,
     separator: (key: Key, value: Value),
-    right: _BTreeNode,
-    areInIncreasingOrder: @escaping (Key, Key) -> Bool
+    right: _BTreeNode
   ) -> _BTreeNode {
     precondition(left.order == right.order)
 
@@ -811,23 +729,9 @@ extension _BTreeNode {
         splinter = node.isTooLarge ? node.split() : nil
       }
       if let s = splinter {
-        return _BTreeNode(
-          left: stock, separator: s.separator, right: s.node,
-          areInIncreasingOrder: areInIncreasingOrder)
+        return _BTreeNode(left: stock, separator: s.separator, right: s.node)
       }
     }
     return stock
-  }
-}
-
-extension _BTreeNode where Key: Comparable {
-  @inlinable
-  internal static func join(
-    left: _BTreeNode,
-    separator: (key: Key, value: Value),
-    right: _BTreeNode
-  ) -> _BTreeNode {
-    return _BTreeNode.join(
-      left: left, separator: separator, right: right, areInIncreasingOrder: <)
   }
 }

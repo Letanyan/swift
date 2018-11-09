@@ -11,13 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 public protocol SortedCollection: Collection {
-  associatedtype Key: Equatable
+  associatedtype Key: Comparable
   associatedtype Keys: SortedCollection
     where Keys.Element == Key, Keys.Key == Key
-
-  /// A predicate that returns `true` if its first argument should be ordered
-  /// before its second argument; otherwise, `false`.
-  var areInIncreasingOrder: (Key, Key) -> Bool { get }
 
   // Returns the index for the given key or `nil` of the key is not present.
   func index(for key: Key) -> Index?
@@ -53,8 +49,8 @@ public protocol SortedInsertableCollection: SortedCollection {
 
 extension SortedCollection {
   /// Returns the element that is associated with `key`.
-  public subscript(key sk: Key) -> Element? {
-    if let idx = index(for: sk) {
+  public subscript(key: Key) -> Element? {
+    if let idx = index(for: key) {
       return self[idx]
     } else {
       return nil
@@ -66,10 +62,6 @@ extension SortedCollection where Keys == Self {
   public var keys: Self {
     return self
   }
-}
-
-extension SortedCollection where Key: Comparable {
-  var areInIncreasingOrder: (Key, Key) -> Bool { return (<) }
 }
 
 extension SortedCollection where Key == Element {
@@ -87,7 +79,7 @@ extension SortedCollection where Self: RandomAccessCollection, Key == Element {
       let mid = index(start, offsetBy: distance(from: start, to: end) / 2)
       if self[mid] == key {
         return mid
-      } else if areInIncreasingOrder(key, self[mid]) {
+      } else if key < self[mid] {
         end = mid
       } else {
         start = index(after: mid)
@@ -108,7 +100,7 @@ extension SortedInsertableCollection where Key == Element {
     var i = startIndex
     var beforeEnd = startIndex
     while i < endIndex {
-      if areInIncreasingOrder(self[i], key) {
+      if self[i] < key {
         beforeEnd = i
         formIndex(after: &i)
       } else {
@@ -132,7 +124,7 @@ where Self: RandomAccessCollection, Key == Element {
       if self[mid] == key {
         keyAlreadyExists = true
       }
-      if areInIncreasingOrder(key, self[mid]) {
+      if key < self[mid] {
         end = mid
       } else {
         start = index(after: mid)
